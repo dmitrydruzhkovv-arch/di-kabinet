@@ -227,7 +227,8 @@
     if (!key) { setStatus('local'); return; }
     if (SY.busy) { SY.again = true; return; }
     SY.busy = true;
-    setStatus('syncing');
+    // фоновая сверка раз в несколько секунд не мигает «сохраняю…» — только когда есть что отправить
+    if (outbox.length || SY.s !== 'synced') setStatus('syncing');
 
     // первый выход на сервер: отдать всё, что накоплено на устройстве (побеждает более поздняя правка)
     if (!lsGet(LS.linked, false)) {
@@ -270,12 +271,13 @@
           if (!next[op.k]) return;
           if (op.t === 'put') next[op.k][op.id] = clone(op.d); else delete next[op.k][op.id];
         });
+        var changed = JSON.stringify(next) !== JSON.stringify(S);
         S = next;
         lsSet(LS.linked, true);
         persist();
         SY.last = Date.now();
         setStatus('synced');
-        safeRender();
+        if (changed) safeRender();
       })
       .catch(function (e) { setStatus(e && e.badKey ? 'badkey' : 'offline'); })
       .then(function () {
@@ -1496,7 +1498,10 @@
 
     if (getKey()) syncNow(); else setStatus('local');
     setInterval(tick, 15000);
-    setInterval(function () { if (getKey() && !document.hidden && !SY.busy) syncNow(); }, 60000);
+    // пока кабинет на экране — сверка каждые 5 с: отметка с телефона видна на Маке почти сразу
+    setInterval(function () { if (getKey() && !document.hidden && !SY.busy) syncNow(); }, 5000);
+    window.addEventListener('focus', function () { if (getKey()) scheduleSync(0); });
+    window.addEventListener('online', function () { if (getKey()) scheduleSync(0); });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
