@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Кабинет D.</title>
+<meta name="description" content="Личный кабинет D.: расписание недели, чек-лист, свободные окна для родителей.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0A0610">
+<script>
+  /* тема ставится до отрисовки, иначе при светлой экран на миг мигнёт тёмным */
+  try { if (localStorage.getItem('kab:theme') === 'light') { document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f1edf8'); } } catch (e) {}
+</script>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Кабинет">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="https://dmitrydruzhkovv-arch.github.io/di-brand-kit/brand-kit.css">
+<link rel="stylesheet" href="style.css?v=2609251303">
+</head>
+<body class="lk-page">
+
+<div class="kb">
+  <header class="kb-top" id="kbTop"></header>
+  <main>
+    <section class="kb-view" id="v-week" aria-label="Неделя"></section>
+    <section class="kb-view" id="v-list" aria-label="Чек-лист" hidden></section>
+    <section class="kb-view" id="v-okna" aria-label="Окна для родителей" hidden></section>
+  </main>
+  <footer class="kb-foot">© 2026 Дмитрий Дружков. Личный кабинет: имена учеников в коде страницы не хранятся.</footer>
+</div>
+
+<nav class="kb-nav" id="kbNav" aria-label="Разделы"></nav>
+<button class="kb-fab" id="kbFab" type="button" data-act="ev-new" aria-label="Вписать занятие"></button>
+
+<div class="sh-bg" id="shBg" data-act="close"></div>
+<section class="sh" id="sh" role="dialog" aria-modal="true" aria-labelledby="shTitle" aria-hidden="true" inert></section>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<noscript><p style="padding:24px">Кабинету нужен JavaScript: включи его в браузере.</p></noscript>
+
+<script src="seed.js?v=2609251303"></script>
+<script src="app.js?v=2609251303"></script>
+</body>
+</html>
