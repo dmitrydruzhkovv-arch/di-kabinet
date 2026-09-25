@@ -20,11 +20,16 @@
 
   /* ═════════ 1. адреса и справочники ═════════ */
 
-  var API = pickApi();
+  var LS = { state: 'kab:state:v1', out: 'kab:outbox:v1', key: 'kab:key', linked: 'kab:linked', tab: 'kab:tab', theme: 'kab:theme', api: 'kab:api' };
+  // Прямой адрес RF-сервера и запасной через шлюз в Хельсинки (25.09): с VPN до
+  // прямого не достать. Шлюз не расшифровывает — пересылает поток на тот же
+  // RF-сервер, имена учеников читает только РФ. Не прошла сверка по сети —
+  // следующая идёт через другой адрес; сработавший помним (kab:api).
+  var APIS = pickApi();
+  var API = APIS[0];
   var HUB = 'https://dmitrydruzhkovv-arch.github.io/di-hub/';
   var SCHOOL = 'https://dmitrydruzhkovv-arch.github.io/uroki-gagarina/';
   var OKNA_URL = 'https://dmitrydruzhkovv-arch.github.io/di-kabinet/okna.html';
-  var LS = { state: 'kab:state:v1', out: 'kab:outbox:v1', key: 'kab:key', linked: 'kab:linked', tab: 'kab:tab', theme: 'kab:theme' };
   var KINDS = ['events', 'blocks', 'items', 'cfg'];
   var TABS = ['week', 'list', 'okna'];
 
@@ -51,10 +56,17 @@
     // ссылка с подменой увела бы ключ D на чужой сервер.
     try {
       var q = new URLSearchParams(location.search).get('api') || '';
-      if (/^http:\/\/(127\.0\.0\.1|localhost)(:\d{2,5})?(\/[\w\/-]*)?$/.test(q)) return q.replace(/\/$/, '');
+      if (/^http:\/\/(127\.0\.0\.1|localhost)(:\d{2,5})?(\/[\w\/-]*)?$/.test(q)) return [q.replace(/\/$/, '')];
     } catch (e) { /* старый браузер — берём боевой адрес */ }
-    return 'https://194-87-110-53.nip.io/cabinet';
+    var list = ['https://194-87-110-53.nip.io/cabinet', 'https://hw.157-228-128-116.nip.io/cabinet'];
+    var saved = lsGet(LS.api, '');
+    return list.indexOf(saved) > 0 ? [saved].concat(list.filter(function (a) { return a !== saved; })) : list;
   }
+
+  // сеть не пустила к серверу — следующая попытка идёт через другой адрес
+  function nextApi() { if (APIS.length > 1) API = APIS[(APIS.indexOf(API) + 1) % APIS.length]; }
+  // сработавший адрес помним; прямой — не пишем (он и так первый)
+  function rememberApi() { if (APIS.length > 1) lsSet(LS.api, API.indexOf('https://hw.') === 0 ? API : ''); }
 
   /* ═════════ 2. иконки ═════════ */
 
@@ -253,7 +265,8 @@
     })
       .then(function (r) {
         if (r.status === 401 || r.status === 403) throw { badKey: true };
-        if (!r.ok) throw new Error('HTTP ' + r.status);
+        rememberApi();   // сервер ответил — этот адрес рабочий
+        if (!r.ok) throw { http: r.status };
         return r.json();
       })
       .then(function (data) {
@@ -279,7 +292,10 @@
         setStatus('synced');
         if (changed) safeRender();
       })
-      .catch(function (e) { setStatus(e && e.badKey ? 'badkey' : 'offline'); })
+      .catch(function (e) {
+        if (!e || (!e.badKey && !e.http)) nextApi();   // до сервера не достали (VPN?) — сменить адрес
+        setStatus(e && e.badKey ? 'badkey' : 'offline');
+      })
       .then(function () {
         clearTimeout(guard);
         SY.busy = false;
@@ -1438,10 +1454,15 @@
     var root = $('#okna');
     root.innerHTML = '<article class="ok-card ok-card--wait"><div class="ok-skel"></div><div class="ok-skel"></div><div class="ok-skel"></div></article>';
     V.oknaNext = /[?&]w=next\b/.test(location.search);
-    var ctrl = window.AbortController ? new AbortController() : null;
-    setTimeout(function () { if (ctrl) ctrl.abort(); }, 9000);
-    fetch(API + '/okna', { signal: ctrl ? ctrl.signal : undefined })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    // у родителя может быть VPN — не достали прямой адрес, пробуем запасной
+    function get(i) {
+      var ctrl = window.AbortController ? new AbortController() : null;
+      var guard = setTimeout(function () { if (ctrl) ctrl.abort(); }, 7000);
+      return fetch(APIS[i] + '/okna', { signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) { clearTimeout(guard); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); },
+              function (e) { clearTimeout(guard); if (i + 1 < APIS.length) return get(i + 1); throw e; });
+    }
+    get(0)
       .then(function (data) {
         S = blank();
         (data.busy || []).forEach(function (o, i) {
