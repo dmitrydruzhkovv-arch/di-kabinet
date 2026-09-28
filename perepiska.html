@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Переписка · Кабинет D.</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0A0610">
+<script>
+  try { if (localStorage.getItem('kab:theme') === 'light') { document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f1edf8'); } } catch (e) {}
+</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="https://dmitrydruzhkovv-arch.github.io/di-brand-kit/brand-kit.css">
+<link rel="stylesheet" href="style.css?v=2609281459">
+<style>
+/* «Переписка» (ТЗ 12, этап 0): что бот написал человеку и что человек сделал.
+   Данные — только с RF-сервера по ключу D.; в коде страницы имён нет. */
+.pp{ max-width:var(--kb-max); margin:0 auto; padding:0 var(--kb-gut) 40px; }
+.pp-top{ display:flex; align-items:center; gap:12px; padding:calc(14px + env(safe-area-inset-top, 0px)) 0 12px; }
+.pp-top a{ color:var(--lk-muted); text-decoration:none; font-weight:700; font-size:14px; }
+.pp-top h1{ font-size:22px; font-weight:900; letter-spacing:-.02em; margin:0; }
+.pp-lead{ color:var(--lk-muted); font-size:14px; margin:0 0 14px; max-width:70ch; }
+.pp-grid{ display:grid; grid-template-columns:1fr; gap:16px; }
+@media (min-width:900px){ .pp-grid{ grid-template-columns:320px minmax(0,1fr); } .pp-back{ display:none; } }
+@media (max-width:899px){ .pp-grid.is-chat .pp-people{ display:none; } .pp-grid:not(.is-chat) .pp-chat{ display:none; } }
+.pp-people{ display:flex; flex-direction:column; gap:8px; align-self:start; }
+.pp-p{ display:flex; flex-direction:column; gap:4px; text-align:left; padding:12px 14px; border-radius:var(--kb-r-m); border:1px solid var(--lk-line); background:var(--kb-panel); color:var(--lk-ink); font:inherit; cursor:pointer; }
+.pp-p[aria-current="true"]{ border-color:var(--lk-violet); }
+.pp-p b{ font-size:16px; }
+.pp-p small{ color:var(--lk-muted); font-size:13px; }
+.pp-n{ display:flex; flex-wrap:wrap; gap:6px; }
+.pp-tag{ font-size:12px; font-weight:700; padding:3px 8px; border-radius:var(--kb-r-xs); background:rgba(255,255,255,.06); border:1px solid var(--lk-line); color:var(--lk-muted); white-space:nowrap; }
+.pp-tag.is-warn{ color:#fbbf24; border-color:rgba(251,191,36,.5); }
+.pp-chat{ min-width:0; border-radius:var(--kb-r-m); border:1px solid var(--lk-line); background:var(--kb-panel-2); padding:14px; }
+.pp-head{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-bottom:10px; }
+.pp-head h2{ margin:0; font-size:18px; }
+.pp-back{ font:inherit; font-weight:700; color:var(--lk-muted); background:none; border:0; padding:0; cursor:pointer; }
+.pp-sum{ font-size:13.5px; color:var(--lk-muted); width:100%; }
+.pp-sum b{ color:var(--lk-ink); }
+.pp-only{ display:flex; align-items:center; gap:8px; font-size:13.5px; color:var(--lk-muted); cursor:pointer; }
+.pp-feed{ display:flex; flex-direction:column; gap:8px; }
+.pp-day{ align-self:center; font-family:var(--lk-mono); font-size:11.5px; color:var(--kb-dim); margin-top:8px; }
+.pp-b{ max-width:min(520px, 92%); padding:9px 12px 7px; border-radius:var(--kb-r-m) var(--kb-r-m) var(--kb-r-m) var(--kb-r-xs); background:var(--kb-panel); border:1px solid var(--lk-line); white-space:pre-wrap; overflow-wrap:anywhere; font-size:14.5px; line-height:1.42; }
+.pp-b.is-in{ align-self:flex-end; border-radius:var(--kb-r-m) var(--kb-r-m) var(--kb-r-xs) var(--kb-r-m); background:rgba(168,85,247,.16); border-color:rgba(168,85,247,.4); }
+.pp-b.is-auto{ border-color:rgba(251,191,36,.55); }
+.pp-b.is-gone{ opacity:.45; }
+.pp-b u{ text-decoration-color:var(--lk-violet); }
+.pp-meta{ display:flex; flex-wrap:wrap; justify-content:flex-end; gap:4px 8px; margin-top:4px; font-size:11.5px; color:var(--kb-dim); white-space:normal; }
+.pp-meta .is-auto{ color:#fbbf24; font-weight:700; }
+.pp-kb{ display:flex; flex-direction:column; gap:4px; margin-top:6px; }
+.pp-kb div{ display:flex; gap:4px; }
+.pp-kb span{ flex:1; min-width:0; text-align:center; font-size:13px; font-weight:700; padding:6px; border-radius:var(--kb-r-s); background:rgba(255,255,255,.07); color:#c4b5fd; }
+.pp-kb span.is-reply{ background:transparent; border:1px dashed var(--lk-line); color:var(--lk-muted); }
+.pp-press{ align-self:flex-end; font-size:12.5px; color:var(--lk-muted); }
+.pp-b details{ margin-top:6px; font-size:12.5px; color:var(--lk-muted); white-space:normal; }
+.pp-b details p{ margin:6px 0 0; padding-left:8px; border-left:2px solid var(--lk-line); white-space:pre-wrap; }
+.pp-empty{ color:var(--lk-muted); font-size:14.5px; padding:18px 4px; }
+.pp-empty a{ color:var(--lk-violet); }
+</style>
+</head>
+<body class="lk-page">
+<div class="pp">
+  <header class="pp-top">
+    <a href="index.html">← Кабинет</a>
+    <h1>Переписка</h1>
+  </header>
+  <p class="pp-lead">Что Телеграм-бот написал каждому человеку и что человек нажимал. Жёлтая рамка — сообщение пришло само, не в ответ человеку: именно такие могут надоесть.</p>
+  <div class="pp-grid" id="grid">
+    <div class="pp-people" id="people"><p class="pp-empty">Загружаю…</p></div>
+    <section class="pp-chat" id="chat" aria-live="polite"><p class="pp-empty">Выбери человека слева.</p></section>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* без памяти */ } }
+  function $(s) { return document.querySelector(s); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // адреса — как в app.js: прямой RF и запасной через шлюз; ?api= — только локальный
+  function pickApi() {
+    try {
+      var q = new URLSearchParams(location.search).get('api') || '';
+      if (/^http:\/\/(127\.0\.0\.1|localhost)(:\d{2,5})?(\/[\w\/-]*)?$/.test(q)) return [q.replace(/\/$/, '')];
+    } catch (e) { /* боевой адрес */ }
+    var list = ['https://194-87-110-53.nip.io/cabinet', 'https://hw.157-228-128-116.nip.io/cabinet'];
+    var saved = lsGet('kab:api', '');
+    return list.indexOf(saved) > 0 ? [saved].concat(list.filter(function (a) { return a !== saved; })) : list;
+  }
+  var APIS = pickApi();
+  var KEY = lsGet('kab:key', '');
+  var PEOPLE = [], ITEMS = [], CUR = null, ONLY = false;
+
+  function get(query, i) {
+    i = i || 0;
+    return fetch(APIS[i] + '/perepiska' + query, { headers: { Authorization: 'Bearer ' + KEY } })
+      .then(function (r) {
+        if (r.status === 401) throw { bad: 1 };
+        if (i > 0 && APIS.length > 1) lsSet('kab:api', APIS[i].indexOf('https://hw.') === 0 ? APIS[i] : '');
+        return r.json();
+      }, function () {
+        if (i + 1 < APIS.length) return get(query, i + 1);
+        throw { net: 1 };
+      });
+  }
+  function fail(e) {
+    return e && e.bad ? 'Ключ не подошёл. Открой <a href="index.html">Кабинет</a> и проверь вход.'
+      : 'Сервер не ответил. Проверь интернет и обнови страницу.';
+  }
+
+  var DAYS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+  function plural(n, a, b, c) { var m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; }
+  function two(n) { return (n < 10 ? '0' : '') + n; }
+  function hm(ms) { var d = new Date(ms); return two(d.getHours()) + ':' + two(d.getMinutes()); }
+  function day(ms) { var d = new Date(ms); return DAYS[d.getDay()] + ' ' + two(d.getDate()) + '.' + two(d.getMonth() + 1); }
+
+  // тексты бота — HTML Телеграма: оставляем жирный и курсив, ссылки — подчёркнутым текстом
+  function botText(t) {
+    return esc(t).replace(/&lt;(\/?)(b|i|code)&gt;/g, '<$1$2>')
+      .replace(/&lt;a [^&]*&gt;/g, '<u>').replace(/&lt;\/a&gt;/g, '</u>');
+  }
+  function kbHtml(rows) {
+    if (!rows || !rows.length) return '';
+    return '<div class="pp-kb">' + rows.map(function (r) {
+      return '<div>' + r.map(function (b) {
+        return '<span' + (b.reply ? ' class="is-reply"' : '') + '>' + esc(b.t) + (b.url ? ' ↗' : '') + '</span>';
+      }).join('') + '</div>';
+    }).join('') + '</div>';
+  }
+
+  function renderPeople() {
+    var box = $('#people');
+    if (!PEOPLE.length) {
+      box.innerHTML = '<p class="pp-empty">Пока пусто. Журнал пишется с 28.09: как только кто-то нажмёт кнопку в боте, он появится здесь.</p>';
+      return;
+    }
+    box.innerHTML = PEOPLE.map(function (p) {
+      return '<button class="pp-p" type="button" data-chat="' + p.chat + '" aria-current="' + (CUR && CUR.chat === p.chat) + '">' +
+        '<b>' + esc(p.name) + '</b><small>последнее: ' + day(p.last) + ', ' + hm(p.last) + '</small>' +
+        '<span class="pp-n"><span class="pp-tag' + (p.loud7 >= 8 ? ' is-warn' : '') + '">само за неделю: ' + p.auto7 +
+        (p.auto7 ? ' · 🔔 ' + p.loud7 : '') + '</span><span class="pp-tag">действий за неделю: ' + p.acts7 + '</span></span></button>';
+    }).join('');
+  }
+
+  function renderChat() {
+    var p = CUR, box = $('#chat');
+    var weekAgo = Date.now() - 7 * 864e5;
+    var bot7 = ITEMS.filter(function (x) { return x.who === 'bot' && x.at >= weekAgo; });
+    var auto7 = bot7.filter(function (x) { return x.auto; });
+    var loud7 = auto7.filter(function (x) { return !x.silent; });
+    var head = '<div class="pp-head"><button class="pp-back" type="button" data-act="back">← Люди</button><h2>' + esc(p.name) + '</h2>' +
+      '<label class="pp-only"><input type="checkbox" id="only"' + (ONLY ? ' checked' : '') + '> только пришедшее само</label>' +
+      '<div class="pp-sum">За 7 дней: бот написал <b>' + bot7.length + '</b>, из них пришло само <b>' + auto7.length +
+      '</b> (со звуком <b>' + loud7.length + '</b>) · человек сделал <b>' + p.acts7 + '</b> ' + plural(p.acts7, 'действие', 'действия', 'действий') + '</div></div>';
+    var last = '', out = [];
+    ITEMS.forEach(function (x) {
+      if (ONLY && !(x.who === 'bot' && x.auto)) return;
+      var d = day(x.at);
+      if (d !== last) { out.push('<div class="pp-day">' + d + '</div>'); last = d; }
+      if (x.who === 'in' && x.kind === 'press') {
+        out.push('<div class="pp-press">👆 нажал(а) «' + esc(x.text) + '» · ' + hm(x.at) + '</div>');
+        return;
+      }
+      if (x.who === 'in') {
+        out.push('<div class="pp-b is-in' + (x.deleted ? ' is-gone' : '') + '">' + esc(x.text) +
+          '<div class="pp-meta">' + (x.react ? '<span>бот поставил ' + esc(x.react) + '</span>' : '') +
+          (x.deleted ? '<span>бот убрал из чата</span>' : '') + '<span>' + hm(x.at) + '</span></div></div>');
+        return;
+      }
+      var meta = [];
+      if (x.auto) meta.push('<span class="is-auto">пришло само · ' + (x.silent ? '🔕 тихо' : '🔔 со звуком') + '</span>');
+      if (x.deleted) meta.push('<span>убрано в ' + hm(x.deleted) + '</span>');
+      meta.push('<span>' + hm(x.at) + '</span>');
+      var hist = x.versions && x.versions.length ? '<details><summary>менялось ' + x.versions.length + ' ' + plural(x.versions.length, 'раз', 'раза', 'раз') + ' — прежние виды</summary>' +
+        x.versions.map(function (v) { return '<p>' + hm(v.at) + ' · ' + botText(v.text) + '</p>'; }).join('') + '</details>' : '';
+      out.push('<div class="pp-b' + (x.auto ? ' is-auto' : '') + (x.deleted ? ' is-gone' : '') + '">' + botText(x.text) +
+        kbHtml(x.buttons) + hist + '<div class="pp-meta">' + meta.join('') + '</div></div>');
+    });
+    box.innerHTML = head + '<div class="pp-feed">' + (out.length ? out.join('') : '<p class="pp-empty">Ничего нет.</p>') + '</div>';
+  }
+
+  function open(chat) {
+    CUR = PEOPLE.filter(function (p) { return p.chat === chat; })[0];
+    if (!CUR) return;
+    $('#grid').classList.add('is-chat');
+    renderPeople();
+    $('#chat').innerHTML = '<p class="pp-empty">Загружаю…</p>';
+    get('?chat=' + chat).then(function (d) { ITEMS = d.items || []; renderChat(); window.scrollTo(0, 0); },
+      function (e) { $('#chat').innerHTML = '<p class="pp-empty">' + fail(e) + '</p>'; });
+  }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-chat]');
+    if (b) { open(Number(b.getAttribute('data-chat'))); return; }
+    if (e.target.closest('[data-act="back"]')) { $('#grid').classList.remove('is-chat'); }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target.id === 'only') { ONLY = e.target.checked; renderChat(); }
+  });
+
+  if (!KEY) {
+    $('#people').innerHTML = '<p class="pp-empty">На этом устройстве Кабинет ещё не открыт. Открой <a href="index.html">Кабинет</a>, войди — и вернись сюда.</p>';
+    $('#chat').innerHTML = '';
+    return;
+  }
+  get('').then(function (d) { PEOPLE = d.people || []; renderPeople(); },
+    function (e) { $('#people').innerHTML = '<p class="pp-empty">' + fail(e) + '</p>'; });
+})();
+</script>
+</body>
+</html>
