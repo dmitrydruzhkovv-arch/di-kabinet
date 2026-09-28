@@ -32,6 +32,10 @@
   var OKNA_URL = 'https://dmitrydruzhkovv-arch.github.io/di-kabinet/okna.html';
   var KINDS = ['events', 'blocks', 'items', 'cfg'];
   var TABS = ['week', 'list', 'okna'];
+  // Расписание D. живёт по Екатеринбургу (МСК+2). Окна для родителя из другого
+  // пояса пересчитываются: переключатель 0 / +1 / +2 / » (+3…+6) во вкладке «Окна».
+  var HOME_MSK = 2;
+  var TZ_MAIN = [0, 1, 2], TZ_MORE = [3, 4, 5, 6];
 
   // cls — внешний вид в сетке; tag — метка на блоке (группы различаются подписью, не цветом)
   var TYPES = {
@@ -87,7 +91,8 @@
     down:  '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
     up:    '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
-    undo:  '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>'
+    undo:  '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+    photo: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/>'
   };
   function ic(n, cls) {
     return '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + IC[n] + '</svg>';
@@ -132,8 +137,10 @@
     if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return b;
     return c;
   }
-  function tzInfo() {
-    var off = -new Date().getTimezoneOffset() / 60, msk = off - 3;
+  // msk — пояс того, кому показываем окна (сдвиг от Москвы); без него — пояс этого устройства
+  function tzInfo(msk) {
+    if (msk == null) msk = -new Date().getTimezoneOffset() / 60 - 3;
+    var off = msk + 3;
     var city = { 2: 'калининградское', 3: 'московское', 4: 'самарское', 5: 'екатеринбургское', 6: 'омское', 7: 'красноярское', 8: 'иркутское', 9: 'якутское', 10: 'владивостокское', 11: 'магаданское', 12: 'камчатское' }[off];
     var shift = msk === 0 ? '' : 'МСК' + (msk > 0 ? '+' : '−') + Math.abs(msk);
     if (off === 3) return { long: 'Время московское.', short: 'время московское' };
@@ -449,7 +456,7 @@
 
   /* ═════════ 8. оболочка ═════════ */
 
-  var V = { tab: 'week', week: mondayOf(todayIso()), oknaNext: false, today: todayIso() };
+  var V = { tab: 'week', week: mondayOf(todayIso()), oknaNext: false, today: todayIso(), tz: HOME_MSK, tzMore: false };
   var FAB, SH = { el: null, bg: null, onSubmit: null, lastFocus: null };
 
   function mountShell() {
@@ -1109,25 +1116,42 @@
     var mon = oknaMon();
     var h = '<div class="ok"><div>' +
       '<div class="ok-lead"><div class="lk-kicker">Для родителей</div><h2>Свободные окна</h2>' +
-        '<p>Карточка без имён: только свободное время. Сделай скриншот или скопируй текстом и отправь родителю.</p></div>' +
-      '<div class="seg" role="group" aria-label="Какая неделя" style="margin:16px 0 14px">' +
+        '<p>Карточка без имён: только свободное время. Выбери пояс родителя, сохрани картинкой или скопируй текстом и отправь.</p></div>' +
+      '<div class="seg" role="group" aria-label="Какая неделя" style="margin:16px 0 10px">' +
         '<button type="button" data-act="ok-week" data-n="0" aria-pressed="' + !V.oknaNext + '">Эта неделя</button>' +
         '<button type="button" data-act="ok-week" data-n="1" aria-pressed="' + V.oknaNext + '">Следующая</button></div>' +
+      tzSegHtml() +
       '<div id="okCardWrap">' + oknaCardHtml(mon) + '</div>' +
       '<div class="ok-actions" style="margin-top:12px">' +
-        '<button class="btn2 btn2--mint" type="button" data-act="ok-copy">' + ic('copy') + 'Скопировать текстом</button>' +
+        '<button class="btn2 btn2--mint ok-photo" type="button" data-act="ok-photo">' + ic('photo') + 'Сохранить в Фото</button>' +
+        '<button class="btn2" type="button" data-act="ok-copy">' + ic('copy') + 'Скопировать текстом</button>' +
         '<button class="btn2" type="button" data-act="ok-link">' + ic('link') + 'Ссылка для родителей</button></div>' +
       '</div>' +
       '<div class="ok-ctl">' + hoursHtml() + '</div></div>';
     $('#v-okna').innerHTML = h;
   }
 
+  // Переключатель пояса родителя: 0 +1 +2 » — «»» раскрывает +3…+6
+  function tzSegHtml() {
+    var more = V.tzMore || TZ_MORE.indexOf(V.tz) >= 0;
+    var list = more ? TZ_MAIN.concat(TZ_MORE) : TZ_MAIN;
+    var b = list.map(function (n) {
+      return '<button type="button" data-act="ok-tz" data-n="' + n + '" aria-pressed="' + (n === V.tz) + '"' +
+        ' aria-label="' + (n ? 'МСК+' + n : 'Москва') + '">' + (n ? '+' + n : '0') + '</button>';
+    }).join('');
+    if (!more) b += '<button type="button" data-act="ok-tz-more" aria-label="Ещё пояса: +3…+6">»</button>';
+    return '<div class="tz-row"><span class="tz-l">Пояс родителя, часы от Москвы</span>' +
+      '<div class="seg seg--tz" role="group" aria-label="Часовой пояс родителя">' + b + '</div></div>';
+  }
+  // время D. (Екатеринбург) → время родителя
+  function tzM(m) { return ((m + (V.tz - HOME_MSK) * 60) % 1440 + 1440) % 1440; }
+
   function oknaCardHtml(mon) {
     var days = freeSlots(mon), slot = +cfg('slot', 60) || 60;
     var rows = days.map(function (d) {
       return '<div class="ok-day"><div class="ok-dn"><b>' + DOW_S[d.dow] + '</b><span>' + ddmm(d.date) + '</span></div>' +
         (d.list.length
-          ? '<div class="ok-slots">' + d.list.map(function (m) { return '<span class="ok-t">' + hhmm(m) + '</span>'; }).join('') + '</div>'
+          ? '<div class="ok-slots">' + d.list.map(function (m) { return '<span class="ok-t">' + hhmm(tzM(m)) + '</span>'; }).join('') + '</div>'
           : '<div class="ok-none">всё занято</div>') + '</div>';
     }).join('');
     if (!days.length) rows = '<div class="ok-empty">На этой неделе приёмных дней больше нет. Открой следующую неделю или включи часы приёма.</div>';
@@ -1135,7 +1159,7 @@
       '<div class="ok-top"><span class="lk-sign" aria-hidden="true"><span class="lk-badge lk-badge-l lk-badge--sm">Λ</span><span class="lk-badge lk-badge-d lk-badge--sm">D.</span></span>' +
         '<span class="ok-week">' + esc(weekLabel(mon)) + '</span></div>' +
       '<h3 class="ok-h">Свободное время для занятий</h3>' +
-      '<p class="ok-sub">Занятие ' + slot + ' ' + plural(slot, 'минута', 'минуты', 'минут') + '. ' + tzInfo().long + '</p>' +
+      '<p class="ok-sub">Занятие ' + slot + ' ' + plural(slot, 'минута', 'минуты', 'минут') + '. ' + tzInfo(V.tz).long + '</p>' +
       rows +
       '<div class="ok-foot"><span>© 2026 Дмитрий Дружков</span><span>математика</span></div></article>';
   }
@@ -1177,9 +1201,9 @@
 
   function oknaText(mon) {
     var days = freeSlots(mon), slot = +cfg('slot', 60) || 60;
-    var lines = ['Свободное время для занятий, ' + weekLabel(mon) + ' (занятие ' + slot + ' ' + plural(slot, 'минута', 'минуты', 'минут') + ', ' + tzInfo().short + '):'];
+    var lines = ['Свободное время для занятий, ' + weekLabel(mon) + ' (занятие ' + slot + ' ' + plural(slot, 'минута', 'минуты', 'минут') + ', ' + tzInfo(V.tz).short + '):'];
     days.forEach(function (d) {
-      lines.push(DOW_S[d.dow] + ' ' + ddmm(d.date) + ': ' + (d.list.length ? d.list.map(hhmm).join(', ') : 'всё занято'));
+      lines.push(DOW_S[d.dow] + ' ' + ddmm(d.date) + ': ' + (d.list.length ? d.list.map(function (m) { return hhmm(tzM(m)); }).join(', ') : 'всё занято'));
     });
     return lines.join('\n');
   }
@@ -1199,6 +1223,152 @@
     try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     ta.remove();
     return ok;
+  }
+
+  /* ── Карточка окон картинкой (D, 28.09): «Сохранить в Фото».
+     Рисуем карточку сами на холсте — без сторонних библиотек, чётко (×3) и
+     мгновенно: iPhone открывает «Поделиться» только сразу после нажатия, а там
+     «Сохранить изображение» кладёт картинку в Фото. Вид — как на экране, тёмный. */
+  function oknaCanvas(mon) {
+    var days = freeSlots(mon), slot = +cfg('slot', 60) || 60;
+    var F = 'Geologica, -apple-system, system-ui, sans-serif', M = '"JetBrains Mono", ui-monospace, monospace';
+    var SC = 3, W = 390, P = 16, cx = P, cw = W - 2 * P, ix = cx + 18, iw = cw - 36;
+    var INK = '#eef0ff', MUTED = '#9aa0c8', DIM = '#737aa8', LINE = 'rgba(255,255,255,.07)';
+    var cv = document.createElement('canvas'), g = cv.getContext('2d');
+
+    function font(w, s, f) { g.font = w + ' ' + s + 'px ' + (f || F); }
+    function wrap(text, w) {
+      var words = String(text).split(' '), lines = [], cur = '';
+      words.forEach(function (wd) {
+        var t = cur ? cur + ' ' + wd : wd;
+        if (cur && g.measureText(t).width > w) { lines.push(cur); cur = wd; } else cur = t;
+      });
+      if (cur) lines.push(cur);
+      return lines;
+    }
+    function rr(x, y, w, h, r) {
+      g.beginPath();
+      g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+      g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+    }
+
+    // 1) раскладка: считаем высоту, пока ничего не рисуем
+    var y = P + 20, L = {};
+    L.top = y; y += 26 + 16;
+    font(900, 23); L.title = wrap('Свободное время для занятий', iw); L.titleY = y; y += L.title.length * 27 + 4;
+    font(400, 14); L.sub = wrap('Занятие ' + slot + ' ' + plural(slot, 'минута', 'минуты', 'минут') + '. ' + tzInfo(V.tz).long, iw);
+    L.subY = y; y += L.sub.length * 20 + 12;
+    var sx = ix + 74, sw = iw - 74;
+    font(700, 14, M);
+    L.rows = days.map(function (d) {
+      var row = { d: d, y: y, pills: [] }, px = 0, py = 0;
+      d.list.forEach(function (m) {
+        var t = hhmm(tzM(m)), w = g.measureText(t).width + 20;
+        if (px && px + w > sw) { px = 0; py += 36; }
+        row.pills.push({ t: t, x: sx + px, y: y + 11 + py, w: w });
+        px += w + 6;
+      });
+      row.h = 22 + Math.max(36, d.list.length ? py + 30 : 24);
+      y += row.h;
+      return row;
+    });
+    if (!days.length) { font(400, 14.5); L.empty = wrap('На этой неделе приёмных дней больше нет.', iw); L.emptyY = y + 16; y += 16 + L.empty.length * 21 + 6; }
+    L.footY = y + 6; y += 6 + 10 + 16 + 14;
+    var ch = y - P, H = y + P;
+
+    // 2) рисуем
+    cv.width = W * SC; cv.height = H * SC;
+    g = cv.getContext('2d'); g.scale(SC, SC); g.textBaseline = 'top';
+    g.fillStyle = '#0A0610'; g.fillRect(0, 0, W, H);
+
+    g.save(); rr(cx, P, cw, ch, 28); g.clip();
+    var bg = g.createLinearGradient(cx, P, cx + cw * .27, P + ch);
+    bg.addColorStop(0, '#1c1b46'); bg.addColorStop(1, '#111129');
+    g.fillStyle = bg; g.fillRect(cx, P, cw, ch);
+    [[cx + cw * .92, P - 30, 'rgba(94,234,212,.16)'], [cx - cw * .1, P + ch + 25, 'rgba(168,85,247,.16)']].forEach(function (a) {
+      var rg = g.createRadialGradient(a[0], a[1], 0, a[0], a[1], 250);
+      rg.addColorStop(0, a[2]); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.fillRect(cx, P, cw, ch);
+    });
+    g.restore();
+    rr(cx + .5, P + .5, cw - 1, ch - 1, 28); g.strokeStyle = 'rgba(94,234,212,.30)'; g.lineWidth = 1; g.stroke();
+
+    // бейджи Λ и D.
+    [['Λ', ix + 13, '#D946EF', '#A855F7'], ['D.', ix + 45, '#A855F7', '#7C3AED']].forEach(function (b) {
+      var cy = L.top + 13, gr = g.createLinearGradient(b[1] - 13, cy - 13, b[1] + 13, cy + 13);
+      gr.addColorStop(0, b[2]); gr.addColorStop(1, b[3]);
+      g.save(); g.shadowColor = 'rgba(168,85,247,.7)'; g.shadowBlur = 14;
+      g.beginPath(); g.arc(b[1], cy, 13, 0, Math.PI * 2); g.fillStyle = gr; g.fill(); g.restore();
+      font(900, 11); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(b[0], b[1], cy + .5); g.textAlign = 'left'; g.textBaseline = 'top';
+    });
+    // неделя справа
+    font(700, 13, M);
+    var wl = weekLabel(mon), ww = g.measureText(wl).width + 20, wx = ix + iw - ww;
+    rr(wx, L.top, ww, 26, 7); g.fillStyle = 'rgba(94,234,212,.10)'; g.fill(); g.strokeStyle = 'rgba(94,234,212,.3)'; g.stroke();
+    g.fillStyle = '#bff7ee'; g.textBaseline = 'middle'; g.fillText(wl, wx + 10, L.top + 13.5); g.textBaseline = 'top';
+
+    font(900, 23); g.fillStyle = INK;
+    L.title.forEach(function (t, i) { g.fillText(t, ix, L.titleY + i * 27); });
+    font(400, 14); g.fillStyle = MUTED;
+    L.sub.forEach(function (t, i) { g.fillText(t, ix, L.subY + i * 20); });
+
+    function hr(yy) { g.fillStyle = LINE; g.fillRect(ix, yy, iw, 1); }
+    L.rows.forEach(function (r) {
+      hr(r.y);
+      font(900, 16); g.fillStyle = INK; g.fillText(DOW_S[r.d.dow], ix, r.y + 11);
+      font(400, 12, M); g.fillStyle = MUTED; g.fillText(ddmm(r.d.date), ix, r.y + 32);
+      if (!r.pills.length) { font(400, 14); g.fillStyle = DIM; g.fillText('всё занято', sx, r.y + 16); return; }
+      r.pills.forEach(function (p) {
+        var pg = g.createLinearGradient(p.x, p.y, p.x + p.w, p.y + 30);
+        pg.addColorStop(0, '#8ff3e3'); pg.addColorStop(1, '#5EEAD4');
+        rr(p.x, p.y, p.w, 30, 7); g.fillStyle = pg; g.fill();
+        font(700, 14, M); g.fillStyle = '#042520'; g.textBaseline = 'middle';
+        g.fillText(p.t, p.x + 10, p.y + 15.5); g.textBaseline = 'top';
+      });
+    });
+    if (L.empty) { font(400, 14.5); g.fillStyle = MUTED; L.empty.forEach(function (t, i) { g.fillText(t, ix, L.emptyY + i * 21); }); }
+    hr(L.footY);
+    font(400, 11.5); g.fillStyle = DIM;
+    g.fillText('© 2026 Дмитрий Дружков', ix, L.footY + 10);
+    g.textAlign = 'right'; g.fillText('математика', ix + iw, L.footY + 10); g.textAlign = 'left';
+    return cv;
+  }
+
+  function savePhoto() {
+    var mon = oknaMon(), url, file = null;
+    var name = 'okna-' + ddmm(mon).replace('.', '-') + (V.tz !== HOME_MSK ? '-msk' + V.tz : '') + '.png';
+    try { url = oknaCanvas(mon).toDataURL('image/png'); } catch (e) { toast('Не вышло сделать картинку'); return; }
+    // синхронно, без ожиданий: иначе iPhone посчитает, что нажатие «остыло», и не откроет меню
+    try {
+      var bin = atob(url.split(',')[1]), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      file = new File([arr], name, { type: 'image/png' });
+    } catch (e) { file = null; }
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).catch(function (e) { if (!e || e.name !== 'AbortError') showPhoto(url, name); });
+      return;
+    }
+    showPhoto(url, name);
+  }
+
+  // запасной путь: компьютер — скачать файл; телефон без «Поделиться» — картинка поверх экрана
+  function showPhoto(url, name) {
+    if (window.matchMedia && matchMedia('(pointer:fine)').matches) {
+      var a = document.createElement('a'); a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast('Картинка скачана');
+      return;
+    }
+    var ov = document.createElement('div');
+    ov.setAttribute('style', 'position:fixed;inset:0;z-index:99999;background:rgba(5,3,10,.92);display:flex;flex-direction:column;' +
+      'align-items:center;justify-content:center;gap:14px;padding:20px;color:#eef0ff;font:15px/1.45 system-ui,sans-serif;text-align:center');
+    ov.innerHTML = '<img alt="Свободные окна" style="max-width:100%;max-height:72vh;border-radius:18px">' +
+      '<div>Нажми на картинку и удерживай → «Сохранить в Фото»</div>' +
+      '<button type="button" style="padding:11px 22px;border-radius:12px;border:1px solid #2a2a4d;background:#15142e;color:#eef0ff;font:600 15px system-ui,sans-serif">Закрыть</button>';
+    ov.querySelector('img').src = url;
+    ov.querySelector('button').onclick = function () { ov.remove(); };
+    document.body.appendChild(ov);
   }
 
   /* ═════════ 13. хранение и копия ═════════ */
@@ -1372,12 +1542,18 @@
       case 'list-meta': openListMeta(); break;
       case 'ok-week': V.oknaNext = t.getAttribute('data-n') === '1'; renderOkna(); break;
       case 'ok-slot': setCfg('slot', +t.getAttribute('data-m')); renderOkna(); break;
+      case 'ok-tz': V.tz = +t.getAttribute('data-n'); renderOkna(); break;
+      case 'ok-tz-more': V.tzMore = true; renderOkna(); break;
+      case 'ok-photo': savePhoto(); break;
       case 'ok-copy':
         copyText(oknaText(oknaMon())).then(function (ok) { toast(ok ? 'Скопировано. Вставь в сообщение родителю' : 'Не вышло скопировать'); });
         break;
       case 'ok-link':
         if (!getKey() || SY.s !== 'synced') { toast('Ссылка заработает, когда подключим сервер. Пока — скриншот или текст'); break; }
-        copyText(OKNA_URL + (V.oknaNext ? '?w=next' : '')).then(function (ok) { toast(ok ? 'Ссылка скопирована' : 'Не вышло скопировать'); });
+        var qp = [];
+        if (V.oknaNext) qp.push('w=next');
+        if (V.tz !== HOME_MSK) qp.push('tz=' + V.tz);   // родитель увидит время своего пояса
+        copyText(OKNA_URL + (qp.length ? '?' + qp.join('&') : '')).then(function (ok) { toast(ok ? 'Ссылка скопирована' : 'Не вышло скопировать'); });
         break;
       case 'undo':
         if (TT.undo) { var fn = TT.undo; TT.undo = null; fn(); }
@@ -1454,6 +1630,9 @@
     var root = $('#okna');
     root.innerHTML = '<article class="ok-card ok-card--wait"><div class="ok-skel"></div><div class="ok-skel"></div><div class="ok-skel"></div></article>';
     V.oknaNext = /[?&]w=next\b/.test(location.search);
+    // пояс: из ссылки D. (?tz=0…6), иначе — пояс телефона родителя; время пересчитывается
+    var tzq = /[?&]tz=(-?\d{1,2})\b/.exec(location.search), dev = -new Date().getTimezoneOffset() / 60 - 3;
+    V.tz = tzq ? +tzq[1] : (dev === Math.round(dev) && dev >= -1 && dev <= 9 ? dev : HOME_MSK);
     // у родителя может быть VPN — не достали прямой адрес, пробуем запасной
     function get(i) {
       var ctrl = window.AbortController ? new AbortController() : null;
