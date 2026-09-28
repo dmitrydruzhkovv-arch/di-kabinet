@@ -29,7 +29,7 @@
   var API = APIS[0];
   var HUB = 'https://dmitrydruzhkovv-arch.github.io/di-hub/';
   var SCHOOL = 'https://dmitrydruzhkovv-arch.github.io/uroki-gagarina/';
-  var OKNA_URL = 'https://dmitrydruzhkovv-arch.github.io/di-kabinet/okna.html';
+  var ZAPIS_URL = 'https://dmitrydruzhkovv-arch.github.io/di-kabinet/zapis.html';   // живая запись (28.09)
   var KINDS = ['events', 'blocks', 'items', 'cfg'];
   var TABS = ['week', 'list', 'okna'];
   // Расписание D. живёт по Екатеринбургу (МСК+2). Окна для родителя из другого
@@ -784,6 +784,7 @@
             ? '<button class="btn2 btn2--mint" type="button" data-e="unskip">' + ic('undo') + 'Вернуть занятие ' + ddmm(date) + '</button>'
             : '<button class="btn2" type="button" data-e="skip">Отменить только ' + ddmm(date) + '</button>')
           : '') +
+        (ev.type !== 'reserve' ? '<button class="btn2" type="button" data-e="invite">' + ic('link') + 'Ссылка ученику: перенос и отмена</button>' : '') +
         '<button class="btn2 btn2--danger" type="button" data-e="del">' + ic('x') + (ev.rep ? 'Удалить из расписания совсем' : 'Удалить') + '</button>') +
       '</div>';
 
@@ -830,6 +831,7 @@
       if (what === 'skip') skipOnce();
       else if (what === 'unskip') unskip();
       else if (what === 'del') removeEvent();
+      else if (what === 'invite') inviteLink(ev);
     });
     form.dur.addEventListener('input', function () { f.dur = clampInt(form.dur.value, 5, 720, f.dur); durTouched = true; press('dur', f.dur); paintHints(); });
     form.start.addEventListener('input', paintHints);
@@ -889,6 +891,26 @@
       closeSheet(); render(false);
       toast('Удалено: ' + (old.title || typeOf(old).label), function () { put('events', old); render(false); });
     }
+  }
+
+  // Личная ссылка ученику на страницу записи (D, 28.09): там он видит свои занятия
+  // в своём поясе, может перенести или отменить. Сервер привязывает к ученику это
+  // занятие и все его «тёзки» (пн + чт). Имя уходит только на наш сервер в РФ.
+  function inviteLink(ev) {
+    var key = getKey();
+    if (!key || SY.s !== 'synced') { toast('Нужна связь с сервером — подожди «синхронно» и нажми ещё раз'); return; }
+    if (outbox.some(function (o) { return o.k === 'events' && o.id === ev.id; })) { scheduleSync(0); toast('Секунду, сохраняю занятие на сервер — нажми ещё раз'); return; }
+    fetch(API + '/zapis/invite', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ ev: ev.id })
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d || !d.ok) throw new Error(d && d.error);
+      scheduleSync(300);   // сервер пометил занятие учеником — подтянуть
+      return copyText(d.link).then(function (ok) {
+        if (ok) toast('Ссылка скопирована. Отправь её ученику — она личная');
+        else window.prompt('Личная ссылка ученику — скопируй:', d.link);
+      });
+    }).catch(function () { toast('Не вышло получить ссылку. Попробуй ещё раз'); });
   }
 
   /* ═════════ 11. раздел «Чек-лист» ═════════ */
@@ -1125,7 +1147,7 @@
       '<div class="ok-actions" style="margin-top:12px">' +
         '<button class="btn2 btn2--mint ok-photo" type="button" data-act="ok-photo">' + ic('photo') + 'Сохранить в Фото</button>' +
         '<button class="btn2" type="button" data-act="ok-copy">' + ic('copy') + 'Скопировать текстом</button>' +
-        '<button class="btn2" type="button" data-act="ok-link">' + ic('link') + 'Ссылка для родителей</button></div>' +
+        '<button class="btn2" type="button" data-act="ok-link">' + ic('link') + 'Ссылка на запись — время закроется само</button></div>' +
       '</div>' +
       '<div class="ok-ctl">' + hoursHtml() + '</div></div>';
     $('#v-okna').innerHTML = h;
@@ -1550,10 +1572,9 @@
         break;
       case 'ok-link':
         if (!getKey() || SY.s !== 'synced') { toast('Ссылка заработает, когда подключим сервер. Пока — скриншот или текст'); break; }
-        var qp = [];
-        if (V.oknaNext) qp.push('w=next');
-        if (V.tz !== HOME_MSK) qp.push('tz=' + V.tz);   // родитель увидит время своего пояса
-        copyText(OKNA_URL + (qp.length ? '?' + qp.join('&') : '')).then(function (ok) { toast(ok ? 'Ссылка скопирована' : 'Не вышло скопировать'); });
+        // одна ссылка на всех: родитель сам выбирает время, оно сразу закрывается у остальных;
+        // пояс страница берёт с телефона родителя (старая okna.html по прежним ссылкам работает)
+        copyText(ZAPIS_URL).then(function (ok) { toast(ok ? 'Ссылка на запись скопирована — отправь родителям' : 'Не вышло скопировать'); });
         break;
       case 'undo':
         if (TT.undo) { var fn = TT.undo; TT.undo = null; fn(); }

@@ -715,3 +715,36 @@ html.kb-theming, html.kb-theming *, html.kb-theming *::before, html.kb-theming *
 [data-theme="light"] .btn2--danger.is-armed{ color:#fff; background:#e11d48; border-color:#e11d48; }
 [data-theme="light"] .sh-status{ background:#f6f3fc; }
 /* всплывашка остаётся тёмной в обеих темах — так её видно поверх любого экрана */
+
+/* ═════════ Запись на занятия (zapis.html, D 28.09) ═════════ */
+.zp-head{ margin-bottom:18px; }
+.zp-head .lk-sign{ margin:0 0 14px; justify-content:flex-start; gap:6px; opacity:1; }
+.zp-h1{ margin:4px 0 0; font-size:28px; font-weight:900; letter-spacing:-.02em; line-height:1.1; }
+.zp .tz-l{ font-size:13px; line-height:1.4; }
+.zp .tz-l b{ color:var(--lk-ink); font-weight:700; }
+button.ok-t{ border:0; cursor:pointer; min-height:40px; min-width:72px; padding:8px 12px; font-size:15px; transition:transform .12s; }
+button.ok-t:active{ transform:scale(.94); }
+.zp-me{ margin-bottom:16px; }
+.zp-me > p{ margin:0; }
+.zp-les{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-top:1px solid rgba(255,255,255,.07); }
+.zp-les b{ display:block; font-family:var(--lk-mono); font-size:15px; }
+.zp-les span{ font-size:12.5px; color:var(--lk-muted); }
+.zp-les-a{ display:flex; gap:6px; flex:0 0 auto; }
+.zp-mini{ height:36px; padding:0 12px; border-radius:var(--kb-r-s); border:1px solid var(--lk-line); background:rgba(8,8,22,.5); font-weight:700; font-size:13.5px; color:var(--lk-ink); cursor:pointer; }
+.zp-mini--bad{ color:#fda4af; border-color:rgba(244,63,94,.42); }
+.zp-late{ font-size:12px; line-height:1.3; color:var(--kb-dim); text-align:right; }
+.zp-move{ display:grid; gap:10px; margin:0 0 14px; }
+.zp-move .zp-mini{ justify-self:start; }
+.zp-foot{ margin-top:26px; text-align:center; font-size:12px; color:var(--kb-dim); }
+.zp-foot a{ color:var(--lk-muted); }
+.zp-sh{ position:fixed; inset:0; z-index:9999; display:flex; align-items:flex-end; justify-content:center; }
+.zp-sh-bg{ position:absolute; inset:0; background:rgba(5,3,10,.72); }
+.zp-sh-card{ position:relative; width:100%; max-width:460px; max-height:92dvh; overflow:auto; padding:22px 18px calc(18px + env(safe-area-inset-bottom)); border-radius:24px 24px 0 0; background:linear-gradient(165deg, #1c1b46, #111129); border:1px solid rgba(94,234,212,.3); border-bottom:0; }
+@media (min-width:520px){ .zp-sh{ align-items:center; } .zp-sh-card{ border-radius:24px; border-bottom:1px solid rgba(94,234,212,.3); } }
+.zp-sh-card p{ margin:10px 0 0; font-size:15.5px; line-height:1.5; }
+.zp-when{ font-size:22px; font-weight:900; letter-spacing:-.01em; }
+.zp-sh-card .zp-tz{ margin:2px 0 0; font-size:13.5px; color:var(--lk-muted); }
+.zp-ok{ display:flex; gap:10px; align-items:flex-start; margin-top:16px; font-size:13.5px; line-height:1.45; color:var(--lk-muted); cursor:pointer; }
+.zp-ok input{ width:22px; height:22px; flex:0 0 22px; margin:0; accent-color:var(--lk-violet); }
+.zp-ok a{ color:var(--lk-ink); }
+[data-theme="light"] .zp-sh-card{ background:#fff; }
