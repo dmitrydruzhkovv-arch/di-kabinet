@@ -13,7 +13,8 @@
 
   var HOME = 2;   // расписание D. — Екатеринбург, МСК+2
   var POLICY = 'politika.html', SOGLASIE = 'soglasie.html';   // тексты Нормы v2 (28.09)
-  var LS = { p: 'zapis:p', tz: 'zapis:tz', api: 'zapis:api' };
+  var TEST = new URLSearchParams(location.search).get('api') === 'test';   // тестовый бот: свой ключ в памяти
+  var LS = { p: TEST ? 'zapis:p:test' : 'zapis:p', tz: 'zapis:tz', api: TEST ? 'zapis:api:test' : 'zapis:api' };
   var DOW = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   var DOW_L = ['', 'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу', 'воскресенье'];
   var MON_G = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
@@ -55,6 +56,8 @@
   var APIS = (function () {
     var q = new URLSearchParams(location.search).get('api') || '';
     if (/^http:\/\/(127\.0\.0\.1|localhost)(:\d{2,5})?(\/[\w\/-]*)?$/.test(q)) return [q.replace(/\/$/, '')];
+    // ?api=test — тестовый Кабинет (копия базы) для тестового бота; другие адреса не берём
+    if (q === 'test') return ['https://194-87-110-53.nip.io/cabinet-test', 'https://hw.157-228-128-116.nip.io/cabinet-test'];
     var list = ['https://194-87-110-53.nip.io/cabinet', 'https://hw.157-228-128-116.nip.io/cabinet'];
     var saved = lsGet(LS.api);
     return list.indexOf(saved) > 0 ? [saved].concat(list.filter(function (a) { return a !== saved; })) : list;
@@ -140,7 +143,7 @@
           : '<div class="zp-late">меньше 12 ч —<br>напишите Дмитрию</div>') +
         '</div>';
     }).join('');
-    return '<section class="ok-box zp-me"><h3>' + esc(me.name) + ', ваши занятия</h3>' +
+    return '<section class="ok-box zp-me"><h3>' + esc(me.head || me.name + ', ваши занятия') + '</h3>' +
       (rows || '<p>Пока ничего не запланировано. Выберите время ниже.</p>') + '</section>';
   }
 
