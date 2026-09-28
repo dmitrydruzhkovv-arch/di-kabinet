@@ -748,3 +748,31 @@ button.ok-t:active{ transform:scale(.94); }
 .zp-ok input{ width:22px; height:22px; flex:0 0 22px; margin:0; accent-color:var(--lk-violet); }
 .zp-ok a{ color:var(--lk-ink); }
 [data-theme="light"] .zp-sh-card{ background:#fff; }
+
+/* ───────── документы: политика, согласие, оферта (_tools/build_docs.py) ───────── */
+.doc{ max-width:760px; margin:0 auto; padding:calc(24px + env(safe-area-inset-top, 0px)) 16px 40px; }
+.doc h2{ margin:30px 0 10px; font-size:20px; font-weight:900; letter-spacing:-.01em; line-height:1.25; }
+.doc p, .doc li{ font-size:15.5px; line-height:1.6; }
+.doc p{ margin:0 0 12px; }
+.doc ul{ margin:0 0 12px; padding-left:22px; }
+.doc li{ margin:4px 0; }
+.doc b{ color:var(--lk-ink); }
+.doc a{ color:var(--lk-ink); text-decoration-color:var(--lk-violet); text-underline-offset:3px; overflow-wrap:anywhere; }
+.doc hr{ margin:26px 0; border:0; border-top:1px solid var(--lk-line); }
+.doc-t{ margin:0 0 14px; overflow-x:auto; border:1px solid var(--lk-line); border-radius:var(--kb-r-m); background:var(--kb-panel-2); }
+.doc-t table{ width:100%; border-collapse:collapse; font-size:14px; line-height:1.5; }
+.doc-t th, .doc-t td{ padding:10px 12px; text-align:left; vertical-align:top; border-top:1px solid var(--lk-line); }
+.doc-t th{ border-top:0; font-weight:700; color:var(--lk-muted); font-size:13px; }
+/* на телефоне строка таблицы = карточка: подпись колонки над значением, ничего не уезжает вбок */
+@media (max-width:560px){
+  .doc-t thead{ display:none; }
+  .doc-t tr, .doc-t td{ display:block; }
+  .doc-t tr + tr{ border-top:1px solid var(--lk-line); }
+  .doc-t td{ border-top:0; padding:4px 14px; }
+  .doc-t td:first-child{ padding-top:12px; font-weight:700; color:var(--lk-ink); }
+  .doc-t td:last-child{ padding-bottom:12px; }
+  .doc-t td:not(:first-child)::before{ content:attr(data-l); display:block; font-size:12px; font-weight:700; color:var(--kb-dim); }
+}
+.doc-nav{ margin-top:32px; padding-top:16px; border-top:1px solid var(--lk-line); text-align:center; font-size:14px; color:var(--kb-dim); }
+.doc-nav a{ color:var(--lk-muted); }
+.doc-nav a[aria-current="page"]{ color:var(--lk-ink); font-weight:700; text-decoration:none; }

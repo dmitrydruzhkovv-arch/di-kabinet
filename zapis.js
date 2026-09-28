@@ -12,7 +12,7 @@
   'use strict';
 
   var HOME = 2;   // расписание D. — Екатеринбург, МСК+2
-  var POLICY = 'https://vk.com/@-238196266-politika-konfidencialnosti';
+  var POLICY = 'politika.html', SOGLASIE = 'soglasie.html';   // тексты Нормы v2 (28.09)
   var LS = { p: 'zapis:p', tz: 'zapis:tz', api: 'zapis:api' };
   var DOW = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   var DOW_L = ['', 'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу', 'воскресенье'];
@@ -201,7 +201,7 @@
         '<form id="zpForm" novalidate>' +
         '<label class="fl"><span>Имя ученика</span><input class="inp" name="name" maxlength="60" autocomplete="name" placeholder="например, Маша, 9 класс" required></label>' +
         '<label class="fl"><span>Как с вами связаться</span><input class="inp" name="contact" maxlength="80" autocomplete="tel" placeholder="телефон или @ник в Телеграме" required></label>' +
-        '<label class="zp-ok"><input type="checkbox" name="consent"> <span>Согласен(на) на обработку персональных данных по <a href="' + POLICY + '" target="_blank" rel="noopener">политике</a>. Данные хранятся в России.</span></label>' +
+        '<label class="zp-ok"><input type="checkbox" name="consent"> <span>Даю согласие на обработку персональных данных — моих и ребёнка — на <a href="' + SOGLASIE + '" target="_blank" rel="noopener">этих условиях</a>. Данные хранятся в России.</span></label>' +
         '<p class="fl-err" id="zpErr" hidden></p>' +
         btns('Записаться', 'do-book', date, m, true) + '</form>');
     }
