@@ -517,6 +517,9 @@
       a.classList.toggle('is-on', on);
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
+    // нижняя панель листается вбок: открытая вкладка не должна прятаться за краем
+    var navOn = $('.kb-nav a.is-on');
+    if (navOn) navOn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     FAB.hidden = tab !== 'week';
     render(true);
     if (anim !== false && !reduceMotion) {
