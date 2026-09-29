@@ -116,7 +116,7 @@
       return;
     }
     var d = Z.data, w = d.weeks[Z.week];
-    root.innerHTML = head() + meHtml() + moveHtml() + tzHtml() +
+    root.innerHTML = head() + abonHtml() + meHtml() + journalHtml() + moveHtml() + tzHtml() +
       '<div class="seg" role="group" aria-label="Какая неделя" style="margin:0 0 12px">' +
         '<button type="button" data-a="week" data-n="0" aria-pressed="' + (Z.week === 0) + '">Эта неделя</button>' +
         '<button type="button" data-a="week" data-n="1" aria-pressed="' + (Z.week === 1) + '">Следующая</button></div>' +
@@ -133,18 +133,62 @@
   function meHtml() {
     var me = Z.data.me;
     if (!me) return '';
-    var rows = me.lessons.map(function (l) {
+    var rows = me.lessons.map(function (l, i) {
       var m = toMin(l.start);
       return '<div class="zp-les"><div><b>' + DOW[dow(l.date)] + ' ' + ddmm(l.date) + ' · ' + hhmm(tzM(m)) + '</b>' +
-          '<span>' + (l.rep ? 'постоянное занятие' : 'разовое занятие') + '</span></div>' +
+          '<span>' + (l.rep ? 'постоянное занятие' : 'разовое занятие') + '</span>' +
+          (i === 0 && /^https:\/\//.test(l.meet || '') ? '<a class="zp-go" href="' + esc(l.meet) + '" target="_blank" rel="noopener">Войти на занятие →</a>' : '') + '</div>' +
         (l.can_change
           ? '<div class="zp-les-a"><button type="button" class="zp-mini" data-a="move" data-ev="' + esc(l.ev) + '" data-d="' + l.date + '" data-m="' + m + '">Перенести</button>' +
             '<button type="button" class="zp-mini zp-mini--bad" data-a="cancel" data-ev="' + esc(l.ev) + '" data-d="' + l.date + '" data-m="' + m + '">Отменить</button></div>'
-          : '<div class="zp-late">меньше 12 ч —<br>напишите Дмитрию</div>') +
+          : '<div class="zp-late">меньше ' + lateH() + ' ч —<br>напишите Дмитрию</div>') +
         '</div>';
     }).join('');
     return '<section class="ok-box zp-me"><h3>' + esc(me.head || me.name + ', ваши занятия') + '</h3>' +
       (rows || '<p>Пока ничего не запланировано. Выберите время ниже.</p>') + '</section>';
+  }
+
+  /* ── абонемент и журнал (D, 29.09): считает сервер, страница только показывает ── */
+  function lateH() { return Math.round(((Z.data && Z.data.change_min) || 180) / 60); }
+  function plural(n, a, b, c) { var m = Math.abs(n) % 100, k = m % 10; return m > 10 && m < 20 ? c : k === 1 ? a : k > 1 && k < 5 ? b : c; }
+  function dmy(s) { return (+s.slice(8, 10)) + ' ' + MON_G[+s.slice(5, 7) - 1]; }
+
+  function abonHtml() {
+    var me = Z.data.me, a = me && me.abon;
+    if (!a) return '';
+    var p = a.pack, cells = '';
+    for (var i = 0; i < p.n; i++) cells += '<i class="' + (i < p.used ? 'is-used' : '') + '"></i>';
+    var next = a.next, big = Math.max(a.left, 0);   // ближайшее занятие именно этого ученика (у родителя детей может быть двое)
+    var state = a.debt > 0
+      ? '<p class="ab-warn">' + a.debt + ' ' + plural(a.debt, 'занятие', 'занятия', 'занятий') + ' в долг — про оплату напишите Дмитрию.</p>'
+      : a.left === 1 ? '<p class="ab-warn">Осталось последнее оплаченное занятие — про продление напишите Дмитрию.</p>'
+      : a.left === 0 ? '<p class="ab-warn">Оплаченные занятия закончились — про продление напишите Дмитрию.</p>' : '';
+    return '<section class="ok-box ab" aria-label="Абонемент">' +
+      '<div class="ab-top"><div class="ab-big"><b>' + big + '</b><span>' + plural(big, 'занятие осталось', 'занятия осталось', 'занятий осталось') + '</span></div>' +
+        '<div class="ab-pack">Проведено <b>' + p.used + ' из ' + p.n + '</b><br>оплата ' + dmy(p.date) + (p.payer ? ' · ' + esc(p.payer) : '') +
+        (a.ahead > 0 ? '<br>и ещё ' + a.ahead + ' оплачено наперёд' : '') + '</div></div>' +
+      '<div class="ab-cells" role="img" aria-label="Проведено ' + p.used + ' из ' + p.n + '">' + cells + '</div>' + state +
+      (next ? '<p class="ab-line">Следующее — <b>' + when(next.date, toMin(next.start)) + '</b></p>' : '') +
+      '<p class="ab-rule">Отменить или перенести без списания можно не позже чем за ' + lateH() + ' ' + plural(lateH(), 'час', 'часа', 'часов') + ' до начала. Позже — занятие засчитывается.</p>' +
+      '</section>';
+  }
+
+  function journalHtml() {
+    var a = Z.data.me && Z.data.me.abon;
+    if (!a || !a.journal.length) return '';
+    var ST = {
+      held: ['проведено', 'ok'], late: ['поздняя отмена — засчитано', 'bad'],
+      free: ['отмена вовремя — не списано', 'dim'], forgiven: ['не списано', 'dim']
+    };
+    var rows = a.journal.map(function (x) {
+      if (x.st === 'start') {
+        return '<div class="jr"><span class="jr-d">до ' + ddmm(x.date) + '</span><span class="jr-s">проведено ' + x.num + ' из ' + x.of + '</span></div>';
+      }
+      var s = ST[x.st] || ST.held;
+      return '<div class="jr"><span class="jr-d">' + DOW[dow(x.date)] + ' ' + ddmm(x.date) + ' · ' + hhmm(tzM(toMin(x.start))) + '</span>' +
+        '<span class="jr-s jr-s--' + s[1] + '">' + s[0] + (x.num ? ' · ' + x.num + ' из ' + x.of : '') + '</span></div>';
+    }).join('');
+    return '<section class="ok-box jr-box"><h3>Прошедшие занятия</h3>' + rows + '</section>';
   }
 
   function moveHtml() {
@@ -268,7 +312,7 @@
   function fail(code) {
     var msg = {
       taken: 'Это время только что заняли. Выберите, пожалуйста, другое.',
-      too_late: 'До занятия меньше 12 часов — перенести или отменить можно только через Дмитрия. Напишите ему.',
+      too_late: 'До занятия меньше ' + lateH() + ' ' + plural(lateH(), 'часа', 'часов', 'часов') + ' — перенести или отменить можно только через Дмитрия. Напишите ему.',
       too_many: 'У вас уже три записи наперёд. Сначала пройдите ближайшее занятие или отмените лишнее.',
       need_name: 'Напишите имя ученика и контакт.',
       need_consent: 'Нужно согласие на обработку данных.',

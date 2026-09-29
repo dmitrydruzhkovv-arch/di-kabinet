@@ -771,6 +771,7 @@
 
     var html =
       (off ? '<div class="fl-warn">Занятие ' + dm(date) + ' отменено. Остальные недели на месте.</div>' : '') +
+      (!isNew && ev.type === 'solo' ? '<div class="abk" id="evAbon" hidden></div>' : '') +
       '<label class="fl"><span>Кто или что</span><input class="inp" name="title" maxlength="80" value="' + esc(isNew ? '' : ev.title || '') + '" placeholder="Имя ученика, группа или дело" enterkeyhint="done"></label>' +
       '<div class="fl"><span class="fl-lbl">Тип</span><div class="chips" data-g="type">' + types + '</div>' +
         '<p class="fl-hint" id="typeHint"></p></div>' +
@@ -781,6 +782,7 @@
       '<label class="tg"><input type="checkbox" name="rep"' + (f.rep ? ' checked' : '') + '><span class="tg-ui"></span>' +
         '<span class="tg-tx"><b>Каждую неделю</b><small id="repHint"></small></span></label>' +
       '<label class="fl"><span>Заметка</span><input class="inp" name="note" maxlength="160" value="' + esc(isNew ? '' : ev.note || '') + '" placeholder="необязательно: Zoom, тема, оплата"></label>' +
+      '<label class="fl"><span>Ссылка на занятие</span><input class="inp" name="meet" type="url" inputmode="url" maxlength="300" value="' + esc(isNew ? '' : ev.meet || '') + '" placeholder="необязательно: https://telemost.yandex.ru/…"></label>' +
       '<div class="fl-warn" id="evWarn" hidden></div>' +
       '<div class="sh-actions"><button class="lk-btn" type="submit">' + (isNew ? 'Вписать' : 'Сохранить') + '</button>' +
       (isNew ? '' :
@@ -794,6 +796,7 @@
       '</div>';
 
     var form = sheet(isNew ? 'Новое занятие' : (ev.title || typeOf(ev).label), sub, html, save);
+    if (!isNew && ev.type === 'solo') abonMount(form, ev, date);
 
     function onceDate() { return addDays(wkMon, f.dow - 1); }
     function paintHints() {
@@ -837,6 +840,7 @@
       else if (what === 'unskip') unskip();
       else if (what === 'del') removeEvent();
       else if (what === 'invite') inviteLink(ev);
+      else if (what.indexOf('ab-') === 0) abonAct(b);
     });
     form.dur.addEventListener('input', function () { f.dur = clampInt(form.dur.value, 5, 720, f.dur); durTouched = true; press('dur', f.dur); paintHints(); });
     form.start.addEventListener('input', paintHints);
@@ -852,14 +856,27 @@
       }
       var st = form.start.value;
       if (!/^\d{2}:\d{2}$/.test(st)) { fieldErr(form.start, 'Проверь время начала'); return; }
-      var o = isNew ? { id: uid('e') } : clone(ev);
+      var o = isNew ? { id: uid('e') } : clone(S.events[ev.id] || ev);
       if (o.title !== title) delete o.short;
+      var w1 = function (t) { return String(t || '').toLowerCase().split(/\s+/).filter(Boolean)[0] || ''; };
+      if (o.who && w1(o.title) !== w1(title)) delete o.who;   // слот отдали другому ученику («Лиза» → «Лиза 10 кл» — тот же)
       o.title = title;
       o.type = f.type;
       o.start = st;
       o.dur = clampInt(form.dur.value, 5, 720, f.dur);
       var note = form.note.value.trim().slice(0, 160);
       if (note) o.note = note; else delete o.note;
+      var meet = form.meet.value.trim().slice(0, 300);
+      if (meet && !/^https:\/\/[^\s"'<>]{4,}$/.test(meet)) { fieldErr(form.meet, 'Ссылка должна начинаться с https://'); return; }
+      if (meet) o.meet = meet; else delete o.meet;
+      if (!o.who && f.type !== 'reserve') {
+        // тот же ученик, что в другом его занятии: разовое занятие-перенос попадёт в его ссылку и абонемент
+        var key = title.replace(/\s+/g, ' ').toLowerCase();
+        var twin = Object.keys(S.events).map(function (k) { return S.events[k]; }).filter(function (x) {
+          return x && x.who && x.id !== o.id && x.type === f.type && String(x.title || '').replace(/\s+/g, ' ').trim().toLowerCase() === key;
+        })[0];
+        if (twin) o.who = twin.who;
+      }
       if (f.rep) {
         if (!o.rep) { o.from = wkMon; o.skip = []; }
         o.rep = 1; o.dow = f.dow; delete o.date;
@@ -873,25 +890,48 @@
       render(false);
       toast(isNew ? 'Вписано: ' + title : 'Сохранено');
     }
-    function skipOnce() {
-      var o = clone(ev);
+    function addSkip() {
+      var o = clone(S.events[ev.id] || ev);
       o.skip = (o.skip || []).filter(function (x) { return x !== date; }).concat([date]);
       put('events', o);
+    }
+    function dropSkip() {
+      var b = S.events[ev.id]; if (!b) return;
+      var c = clone(b); c.skip = (c.skip || []).filter(function (x) { return x !== date; });
+      put('events', c);
+    }
+    function skipOnce() {
+      if (abonLate(ev, date)) { abonAskCancel(ev, date, addSkip, dropSkip); return; }
+      addSkip();
       closeSheet(); render(false);
-      toast('Отменено ' + ddmm(date), function () {
-        var b = S.events[ev.id]; if (!b) return;
-        var c = clone(b); c.skip = (c.skip || []).filter(function (x) { return x !== date; });
-        put('events', c); render(false);
-      });
+      toast('Отменено ' + ddmm(date), function () { dropSkip(); render(false); });
     }
     function unskip() {
-      var o = clone(ev);
+      var o = clone(S.events[ev.id] || ev);
       o.skip = (o.skip || []).filter(function (x) { return x !== date; });
       put('events', o);
+      if (o.who) abonCall('POST', { op: 'mark', ev: ev.id, date: date, st: '' }).catch(function () {});
       closeSheet(); render(false);
       toast('Занятие ' + ddmm(date) + ' вернулось');
     }
     function removeEvent() {
+      if (!ev.rep && abonLate(ev, ev.date)) {
+        // разовое занятие отменяют удалением — поздняя отмена тоже может списываться
+        var kept = null;
+        abonAskCancel(ev, ev.date, function () { kept = drop('events', ev.id); }, function () { if (kept) put('events', kept); });
+        return;
+      }
+      var cur = S.events[ev.id] || ev;
+      var today = todayIso(), last = abonMinutesLeft(cur, today) <= 0 ? today : addDays(today, -1);
+      if (cur.rep && cur.who && cur.from && cur.from <= last) {
+        // прошедшие занятия — история абонемента: не стираем, а заканчиваем серию
+        var was = clone(cur), o = clone(cur);
+        o.until = last;
+        put('events', o);
+        closeSheet(); render(false);
+        toast('Убрано из расписания. Прошедшие занятия остаются в счёте', function () { put('events', was); render(false); });
+        return;
+      }
       var old = drop('events', ev.id);
       closeSheet(); render(false);
       toast('Удалено: ' + (old.title || typeOf(old).label), function () { put('events', old); render(false); });
@@ -916,6 +956,155 @@
         else window.prompt('Личная ссылка ученику — скопируй:', d.link);
       });
     }).catch(function () { toast('Не вышло получить ссылку. Попробуй ещё раз'); });
+  }
+
+  /* ── Абонемент в листе занятия (D, 29.09) ──────────────────────────────────
+     Остаток и журнал считает сервер (zapis.py → abon_state): здесь только показ
+     и кнопки. Прошло занятие — списано само; отмена позже чем за 3 ч — по правилу
+     списано, D. может не списывать. Нужна связь с сервером; нет её — блока нет. */
+  var AB = { ev: null };
+
+  function abonCall(method, body, q) {
+    return fetch(API + '/zapis/abon' + (q || ''), {
+      method: method, body: body ? JSON.stringify(body) : undefined,
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getKey() }
+    }).then(function (r) { return r.json(); });
+  }
+
+  function abonMount(form, ev, date) {
+    AB = { ev: ev, date: date, st: null, min: 180, box: $('#evAbon', form), open: false, busy: false };
+    if (!getKey()) return;
+    AB.box.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });   // Enter не сохраняет занятие
+    abonCall('GET', null, '?ev=' + encodeURIComponent(ev.id)).then(function (d) {
+      if (!d || !d.ok || AB.ev !== ev) return;   // выключено на сервере, занятие ещё не на сервере или лист уже другой
+      AB.st = d.state; AB.min = d.change_min || 180; AB.bound = d.bound || [];
+      abonPaint();
+    }).catch(function () { /* нет связи — блок просто не появится */ });
+  }
+
+  var AB_ST = {
+    held: ['проведено', 'Не списывать', 'forgiven'],
+    forgiven: ['не списано', 'Списать', ''],
+    late: ['поздняя отмена — списано', 'Не списывать', ''],
+    free: ['отмена вовремя — не списано', 'Списать как позднюю отмену', 'late']
+  };
+
+  function abonPaint() {
+    var b = AB.box, s = AB.st;
+    if (!b || !document.body.contains(b)) return;
+    b.hidden = false;
+    if (AB.open) { b.innerHTML = abonFormHtml(); return; }
+    if (!s) {
+      b.innerHTML = '<button class="btn2" type="button" data-e="ab-open">💳 Внести оплату: сколько занятий оплачено</button>';
+      return;
+    }
+    var p = s.pack, left = s.left;
+    var cur = s.journal.filter(function (x) { return x.ev === AB.ev.id && x.date === AB.date; })[0];
+    var line = cur && AB_ST[cur.st]
+      ? '<div class="abk-now"><span>' + ddmm(AB.date) + ': <b>' + AB_ST[cur.st][0] + (cur.num ? ' · ' + cur.num + ' из ' + cur.of : '') + '</b></span>' +
+        '<button class="btn2 btn2--sm" type="button" data-e="ab-mark" data-st="' + AB_ST[cur.st][2] + '">' + AB_ST[cur.st][1] + '</button></div>'
+      : '';
+    var last = s.journal.filter(function (x) { return x.st !== 'start'; }).slice(0, 4).map(function (x) {
+      return '<li><span>' + DOW_S[dowOf(x.date)] + ' ' + ddmm(x.date) + '</span><span>' + (AB_ST[x.st] ? AB_ST[x.st][0] : '') + (x.num ? ' · ' + x.num + '/' + x.of : '') + '</span></li>';
+    }).join('');
+    b.innerHTML =
+      '<div class="abk-h"><b class="' + (left <= 1 ? 'is-low' : '') + '">' + left + '</b><span>' +
+        (left < 0 ? 'в долг: ' + (-left) + ' ' + plural(-left, 'занятие', 'занятия', 'занятий')
+          : plural(left, 'занятие осталось', 'занятия осталось', 'занятий осталось')) +
+        '<small>пакет ' + p.n + ' · проведено ' + p.used + ' · оплата ' + ddmm(p.date) + (p.payer ? ', ' + esc(p.payer) : '') +
+        (s.ahead > 0 ? ' · ещё ' + s.ahead + ' наперёд' : '') + '</small></span></div>' +
+      line + (last ? '<ul class="abk-j">' + last + '</ul>' : '') +
+      (AB.bound && AB.bound.length ? '<p class="abk-b">Занятия ученика в счёте: ' + esc(AB.bound.join(' · ')) + '</p>' : '') +
+      '<div class="abk-a"><button class="btn2 btn2--sm" type="button" data-e="ab-open">＋ Новая оплата</button>' +
+        '<button class="btn2 btn2--sm" type="button" data-e="ab-unpay">Убрать пакет</button></div>';
+    arm($('[data-e="ab-unpay"]', b), function () { abonSend({ op: 'unpay', id: p.id }, 'Пакет убран'); });
+  }
+
+  function abonFormHtml() {
+    var chip = function (n) { return '<button type="button" class="chip" data-e="ab-n" data-v="' + n + '" aria-pressed="' + (n === 8) + '">' + n + '</button>'; };
+    return '<div class="abk-f">' +
+      '<div class="fl"><span class="fl-lbl">Сколько занятий оплачено</span><div class="dur-row">' + [4, 8, 12].map(chip).join('') +
+        '<input class="inp inp--time inp--num" type="number" inputmode="numeric" name="ab_n" min="1" max="100" value="8" aria-label="Занятий в пакете"></div></div>' +
+      (AB.st ? '' :
+        '<label class="fl"><span>Из них уже проведено</span><input class="inp inp--num" type="number" inputmode="numeric" name="ab_done" min="0" max="100" value="0">' +
+        '<small class="fl-hint">на сегодня: если пакет начался раньше — сколько его занятий уже прошло. Тогда счёт пойдёт с этой минуты</small></label>') +
+      (AB.st && AB.st.debt > 0 ? '<p class="fl-hint">Долг ' + AB.st.debt + ' ' + plural(AB.st.debt, 'занятие', 'занятия', 'занятий') + ' спишется из этого пакета сам.</p>' : '') +
+      '<label class="fl"><span>Кто платил</span><input class="inp" name="ab_payer" maxlength="24" placeholder="мама, папа, сам"></label>' +
+      '<label class="fl"><span>Дата оплаты</span><input class="inp inp--time" type="date" name="ab_date" value="' + todayIso() + '" max="' + todayIso() + '"></label>' +
+      '<div class="sh-actions"><button class="lk-btn" type="button" data-e="ab-save">Сохранить оплату</button>' +
+        '<button class="btn2" type="button" data-e="ab-close">Отмена</button></div></div>';
+  }
+
+  function abonSend(body, okMsg) {
+    if (AB.busy) return;
+    AB.busy = true;
+    body.ev = AB.ev.id;
+    var ev = AB.ev;
+    abonCall('POST', body).then(function (d) {
+      AB.busy = false;
+      if (!d || !d.ok) throw new Error(d && d.error);
+      if (AB.ev !== ev) return;
+      AB.st = d.state; AB.open = false; AB.bound = d.bound || AB.bound;
+      abonPaint();
+      scheduleSync(300);   // сервер мог привязать занятия к ученику — подтянуть
+      if (okMsg) toast(okMsg + (d.state ? ': осталось ' + d.state.left : ''));
+    }).catch(function () { AB.busy = false; toast('Не вышло сохранить — нужна связь с сервером'); });
+  }
+
+  function abonAct(btn) {
+    var what = btn.getAttribute('data-e'), f = AB.box;
+    if (what === 'ab-open') { AB.open = true; abonPaint(); }
+    else if (what === 'ab-close') { AB.open = false; abonPaint(); }
+    else if (what === 'ab-n') {
+      $('[name="ab_n"]', f).value = btn.getAttribute('data-v');
+      $$('[data-e="ab-n"]', f).forEach(function (c) { c.setAttribute('aria-pressed', String(c === btn)); });
+    }
+    else if (what === 'ab-mark') abonSend({ op: 'mark', date: AB.date, st: btn.getAttribute('data-st') }, 'Отмечено');
+    else if (what === 'ab-save') {
+      var dn = $('[name="ab_done"]', f), n = clampInt($('[name="ab_n"]', f).value, 0, 100, 0), done = dn ? clampInt(dn.value, 0, 100, 0) : 0;
+      if (n < 1) { fieldErr($('[name="ab_n"]', f), 'Сколько занятий в пакете?'); return; }
+      if (done > n) { fieldErr(dn, 'Проведено больше, чем оплачено'); return; }
+      abonSend({ op: 'pay', n: n, done: done, payer: $('[name="ab_payer"]', f).value.trim(), date: $('[name="ab_date"]', f).value || todayIso() }, 'Оплата внесена');
+    }
+  }
+
+  // отмена меньше чем за 3 ч (или уже началось) у ученика, по которому ведём абонемент.
+  // Время занятий в Кабинете — екатеринбургское (как HOME_TZ в zapis.py), а не пояс телефона.
+  var HOME_UTC = 5;
+  function abonMinutesLeft(ev, date) {
+    var p = String(date).split('-');
+    return (Date.UTC(+p[0], +p[1] - 1, +p[2]) + (toMin(ev.start) - HOME_UTC * 60) * 60000 - Date.now()) / 60000;
+  }
+  function abonLate(ev, date) { return AB.ev === ev && !!AB.st && !!date && abonMinutesLeft(ev, date) < (AB.min || 180); }
+
+  // поздняя отмена: списать решает D. (ученик отменил поздно — да; сам D. или уважительная причина — нет, п. 4.3–4.4 оферты)
+  function abonAskCancel(ev, date, doIt, undoIt) {
+    var h = Math.round((AB.min || 180) / 60);
+    var form = sheet('Отмена ' + dm(date), abonMinutesLeft(ev, date) <= 0 ? 'занятие уже началось или прошло' : 'до начала меньше ' + h + ' ч',
+      '<p class="fl-hint abk-q">Если ученик отменил позже чем за ' + h + ' ч, занятие засчитывается как проведённое (оферта, п. 4.3). Если отменяешь ты или причина уважительная — не списывай.</p>' +
+      '<div class="sh-actions">' +
+        '<button class="btn2 btn2--danger" type="button" data-e="late-yes">Списать: ученик отменил поздно</button>' +
+        '<button class="btn2" type="button" data-e="late-no">Отменить, не списывать</button>' +
+        '<button class="btn2" type="button" data-act="close">Назад, не отменять</button></div>', null);
+    form.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-e]');
+      if (!b) return;
+      var charge = b.getAttribute('data-e') === 'late-yes';
+      var finish = function () {
+        closeSheet(); doIt(); render(false);
+        toast('Отменено ' + ddmm(date) + (charge ? ': списано' : ': не списано'), function () {
+          undoIt(); render(false);
+          if (charge) abonCall('POST', { op: 'mark', ev: ev.id, date: date, st: '' }).catch(function () {});
+        });
+      };
+      if (!charge) { finish(); return; }
+      b.disabled = true;
+      // отметку — до отмены: разовое занятие удаляется, а сервер отмечает только существующее
+      abonCall('POST', { op: 'mark', ev: ev.id, date: date, st: 'late' }).then(function (d) {
+        if (!d || !d.ok) throw new Error();
+        finish();
+      }).catch(function () { b.disabled = false; toast('Нет связи с сервером — ничего не отменено. Попробуй ещё раз'); });
+    });
   }
 
   /* ═════════ 11. раздел «Чек-лист» ═════════ */
@@ -1536,10 +1725,10 @@
   }
 
   var TT = { timer: 0, undo: null };
-  function toast(msg, undo) {
+  function toast(msg, undo, undoLabel) {
     var el = $('#toast');
     TT.undo = undo || null;
-    el.innerHTML = '<span>' + esc(msg) + '</span>' + (undo ? '<button type="button" data-act="undo">Вернуть</button>' : '');
+    el.innerHTML = '<span>' + esc(msg) + '</span>' + (undo ? '<button type="button" data-act="undo">' + esc(undoLabel || 'Вернуть') + '</button>' : '');
     el.classList.add('is-on');
     clearTimeout(TT.timer);
     TT.timer = setTimeout(function () { el.classList.remove('is-on'); TT.undo = null; }, undo ? 6000 : 2600);

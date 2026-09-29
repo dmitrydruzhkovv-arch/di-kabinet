@@ -761,6 +761,53 @@ button.ok-t:active{ transform:scale(.94); }
 .zp-ok a{ color:var(--lk-ink); }
 [data-theme="light"] .zp-sh-card{ background:#fff; }
 
+/* ───────── страница ученика: абонемент и журнал (D, 29.09) ─────────
+   Считает сервер (zapis.py → abon_state), здесь только вид. Клетка = занятие пакета. */
+.ab{ margin-bottom:16px; }
+.ab-top{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px; }
+.ab-big b{ display:block; font-family:var(--lk-mono); font-size:44px; line-height:1; font-weight:800; color:var(--lk-mint); }
+.ab-big span{ display:block; margin-top:4px; font-size:13.5px; color:var(--lk-muted); }
+.ab-pack{ text-align:right; font-size:13px; line-height:1.45; color:var(--lk-muted); }
+.ab-pack b{ color:var(--lk-ink); }
+.ab-cells{ display:flex; flex-wrap:wrap; gap:6px; margin:14px 0 2px; }
+.ab-cells i{ width:22px; height:22px; border-radius:7px; border:1.5px solid rgba(94,234,212,.55); }
+.ab-cells i.is-used{ background:rgba(154,160,200,.28); border-color:transparent; }
+.ab-warn{ margin:12px 0 0; padding:10px 12px; border-radius:var(--kb-r-s); background:rgba(129,140,248,.12); font-size:13.5px; line-height:1.4; }
+.ab-line{ margin:12px 0 0; font-size:14px; }
+.ab-rule{ margin:8px 0 0; font-size:12.5px; line-height:1.4; color:var(--kb-dim); }
+.zp-go{ display:inline-block; margin-top:6px; font-size:13.5px; font-weight:800; color:var(--lk-mint); text-decoration:none; }
+.jr-box{ margin-bottom:16px; }
+.jr{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:9px 0; border-top:1px solid rgba(255,255,255,.07); font-size:13.5px; }
+.jr-d{ font-family:var(--lk-mono); white-space:nowrap; }
+.jr-s{ text-align:right; color:var(--lk-muted); }
+.jr-s--ok{ color:var(--lk-ok); }
+.jr-s--bad{ color:#fda4af; }
+.jr-s--dim{ color:var(--kb-dim); }
+
+/* Кабинет: абонемент в листе занятия (app.js → abonPaint) */
+.abk{ margin:0 0 16px; padding:14px; border-radius:var(--kb-r-m); background:rgba(94,234,212,.06); border:1px solid rgba(94,234,212,.28); }
+.abk > .btn2{ min-height:46px; }
+.abk-h{ display:flex; align-items:center; gap:12px; }
+.abk-h > b{ font-family:var(--lk-mono); font-size:38px; line-height:1; font-weight:800; color:var(--lk-mint); }
+.abk-h > b.is-low{ color:#fda4af; }
+.abk-h span{ font-size:15px; font-weight:700; }
+.abk-h small{ display:block; margin-top:3px; font-size:12.5px; font-weight:500; color:var(--lk-muted); }
+.abk-now{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,.08); font-size:13.5px; }
+.abk-j{ list-style:none; margin:10px 0 0; padding:0; font-size:12.5px; color:var(--lk-muted); }
+.abk-j li{ display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+.abk-j li span:first-child{ font-family:var(--lk-mono); color:var(--lk-ink); }
+.abk-a{ display:flex; gap:8px; margin-top:12px; }
+.btn2--sm{ width:auto; min-height:38px; padding:0 12px; font-size:13px; border-radius:var(--kb-r-s); flex:0 1 auto; }
+.abk-a .btn2--sm{ flex:1 1 0; }
+.abk-f .fl:first-child{ margin-top:0; }
+.abk-b{ margin:10px 0 0; font-size:12px; color:var(--kb-dim); }
+.abk-q{ margin:0 0 14px; font-size:14px; line-height:1.5; }
+[data-theme="light"] .abk{ background:rgba(20,184,166,.06); border-color:rgba(20,184,166,.35); }
+[data-theme="light"] .abk-h > b{ color:var(--kb-mi); }
+[data-theme="light"] .abk-h > b.is-low{ color:#be123c; }
+[data-theme="light"] .abk-now{ border-color:rgba(0,0,0,.08); }
+[data-theme="light"] .ab-big b, [data-theme="light"] .zp-go{ color:var(--kb-mi); }
+
 /* ───────── документы: политика, согласие, оферта (_tools/build_docs.py) ───────── */
 .doc{ max-width:760px; margin:0 auto; padding:calc(24px + env(safe-area-inset-top, 0px)) 16px 40px; }
 .doc h2{ margin:30px 0 10px; font-size:20px; font-weight:900; letter-spacing:-.01em; line-height:1.25; }
