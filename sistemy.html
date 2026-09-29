@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Системы · Кабинет D.</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0A0610">
+<script>
+  try { if (localStorage.getItem('kab:theme') === 'light') { document.documentElement.setAttribute('data-theme', 'light'); document.querySelector('meta[name="theme-color"]').setAttribute('content', '#f1edf8'); } } catch (e) {}
+</script>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="https://dmitrydruzhkovv-arch.github.io/di-brand-kit/brand-kit.css">
+<link rel="stylesheet" href="style.css?v=2609292246">
+<style>
+/* «Системы» (ТЗ 13, этап 3): пульт с телефона — что работает, сервер, люди, ошибки.
+   Данные — только с RF-сервера по ключу D.; в коде страницы имён нет. */
+.sy{ max-width:var(--kb-max); margin:0 auto; padding:0 var(--kb-gut) 40px; --ok:#34d399; --warn:#fbbf24; --bad:#f87171; }
+[data-theme="light"] .sy{ --ok:#059669; --warn:#b45309; --bad:#dc2626; }
+.sy-top{ display:flex; align-items:center; gap:12px; padding:calc(14px + env(safe-area-inset-top, 0px)) 0 6px; }
+.sy-top a{ color:var(--lk-muted); text-decoration:none; font-weight:700; font-size:14px; }
+.sy-top h1{ font-size:22px; font-weight:900; letter-spacing:-.02em; margin:0; }
+.sy-fresh{ color:var(--lk-muted); font-size:13px; margin:0 0 14px; }
+.sy-fresh button{ font:inherit; font-weight:700; color:var(--lk-violet); background:none; border:0; padding:0 0 0 6px; cursor:pointer; }
+.sy-sum{ display:flex; align-items:center; gap:10px; padding:14px 16px; border-radius:var(--kb-r-m); border:1px solid var(--lk-line); background:var(--kb-panel); font-size:17px; font-weight:800; margin-bottom:14px; }
+.sy-sum.is-ok{ border-color:color-mix(in srgb, var(--ok) 55%, transparent); }
+.sy-sum.is-warn{ border-color:color-mix(in srgb, var(--warn) 60%, transparent); }
+.sy-sum.is-bad{ border-color:color-mix(in srgb, var(--bad) 60%, transparent); }
+.sy-grid{ display:grid; grid-template-columns:1fr; gap:14px; }
+@media (min-width:900px){ .sy-grid{ grid-template-columns:1fr 1fr; } }
+.sy-card{ min-width:0; border-radius:var(--kb-r-m); border:1px solid var(--lk-line); background:var(--kb-panel-2); padding:14px; }
+.sy-card h2{ margin:0 0 10px; font-size:16px; font-weight:800; }
+.sy-card h2 small{ font-weight:600; color:var(--lk-muted); font-size:13px; }
+.sy-row{ display:flex; align-items:baseline; gap:10px; padding:7px 0; border-top:1px solid var(--lk-line); font-size:14.5px; }
+.sy-row:first-of-type{ border-top:0; }
+.sy-dot{ flex:none; width:10px; height:10px; border-radius:50%; background:var(--ok); transform:translateY(1px); }
+.sy-dot.is-warn{ background:var(--warn); } .sy-dot.is-bad{ background:var(--bad); } .sy-dot.is-off{ background:var(--kb-dim); }
+.sy-row b{ font-weight:700; min-width:0; overflow-wrap:anywhere; }
+.sy-row span{ margin-left:auto; color:var(--lk-muted); font-size:13px; text-align:right; white-space:nowrap; }
+.sy-kv{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px; }
+.sy-kv > div{ padding:10px 12px; border-radius:var(--kb-r-s); background:var(--kb-panel); border:1px solid var(--lk-line); }
+.sy-kv small{ display:block; color:var(--lk-muted); font-size:12.5px; }
+.sy-kv b{ font-size:20px; font-weight:900; font-variant-numeric:tabular-nums; }
+.sy-kv b.is-warn{ color:var(--warn); } .sy-kv b.is-bad{ color:var(--bad); }
+.sy-bar{ height:5px; border-radius:3px; background:var(--lk-line); margin-top:6px; overflow:hidden; }
+.sy-bar i{ display:block; height:100%; background:var(--ok); }
+.sy-bar i.is-warn{ background:var(--warn); } .sy-bar i.is-bad{ background:var(--bad); }
+.sy-list{ display:flex; flex-direction:column; }
+.sy-p{ display:flex; flex-direction:column; gap:2px; padding:8px 0; border-top:1px solid var(--lk-line); font-size:14.5px; }
+.sy-p:first-child{ border-top:0; }
+.sy-p small{ color:var(--lk-muted); font-size:13px; overflow-wrap:anywhere; }
+.sy-err{ font-family:var(--lk-mono); font-size:12.5px; overflow-wrap:anywhere; }
+.sy-empty{ color:var(--lk-muted); font-size:14px; margin:0; }
+.sy-empty a{ color:var(--lk-violet); }
+.sy-foot{ margin-top:16px; color:var(--kb-dim); font-size:12px; font-family:var(--lk-mono); overflow-wrap:anywhere; }
+</style>
+</head>
+<body class="lk-page">
+<div class="sy">
+  <header class="sy-top">
+    <a href="index.html">← Кабинет</a>
+    <h1>Системы</h1>
+  </header>
+  <p class="sy-fresh" id="fresh">Загружаю…</p>
+  <div id="out"></div>
+</div>
+<script>
+(function () {
+  'use strict';
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* без памяти */ } }
+  function $(s) { return document.querySelector(s); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  // адреса — как в app.js: прямой RF и запасной через шлюз; ?api= — только локальный
+  function pickApi() {
+    try {
+      var q = new URLSearchParams(location.search).get('api') || '';
+      if (/^http:\/\/(127\.0\.0\.1|localhost)(:\d{2,5})?(\/[\w\/-]*)?$/.test(q)) return [q.replace(/\/$/, '')];
+    } catch (e) { /* боевой адрес */ }
+    var list = ['https://194-87-110-53.nip.io/cabinet', 'https://hw.157-228-128-116.nip.io/cabinet'];
+    var saved = lsGet('kab:api', '');
+    return list.indexOf(saved) > 0 ? [saved].concat(list.filter(function (a) { return a !== saved; })) : list;
+  }
+  var APIS = pickApi();
+  var KEY = lsGet('kab:key', '');
+  var DATA = null, LOADED = 0, TIMER = null, ERR = '', BUSY = false, STOP = false;
+
+  // прямой адрес при VPN виснет — ждём 8 с и идём на запасной; сработавший ставим первым
+  function get(i) {
+    i = i || 0;
+    var ctl = window.AbortController ? new AbortController() : null;
+    var t = ctl ? setTimeout(function () { ctl.abort(); }, 8000) : 0;
+    return fetch(APIS[i] + '/sistemy', { headers: { Authorization: 'Bearer ' + KEY }, cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+      .then(function (r) {
+        clearTimeout(t);
+        if (r.status === 401) throw { bad: 1 };
+        if (!r.ok) throw { net: 1 };
+        if (i > 0) {
+          lsSet('kab:api', APIS[i].indexOf('https://hw.') === 0 ? APIS[i] : '');
+          APIS = [APIS[i]].concat(APIS.filter(function (a, j) { return j !== i; }));
+        }
+        return r.json();
+      }, function () {
+        clearTimeout(t);
+        if (i + 1 < APIS.length) return get(i + 1);
+        throw { net: 1 };
+      });
+  }
+  // сторож экранирует текст для Телеграма: снимаем теги и возвращаем символы
+  function plain(t) {
+    return String(t || '').replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&');
+  }
+
+  function plural(n, a, b, c) { var m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c; }
+  function two(n) { return (n < 10 ? '0' : '') + n; }
+  function hm(ms) { var d = new Date(ms); return two(d.getHours()) + ':' + two(d.getMinutes()); }
+  function dm(ms) { var d = new Date(ms); return two(d.getDate()) + '.' + two(d.getMonth() + 1); }
+  // «12 мин назад», «3 ч назад», «вчера 18:40», «27.09 18:40»
+  function ago(ms) {
+    if (!ms) return '—';
+    var s = Math.max(0, (Date.now() - ms) / 1000);
+    if (s < 60) return 'только что';
+    if (s < 3600) return Math.floor(s / 60) + ' мин назад';
+    if (s < 6 * 3600) return Math.floor(s / 3600) + ' ч назад';
+    var d = new Date(ms), t = new Date();
+    if (d.toDateString() === t.toDateString()) return 'сегодня ' + hm(ms);
+    t.setDate(t.getDate() - 1);
+    if (d.toDateString() === t.toDateString()) return 'вчера ' + hm(ms);
+    return dm(ms) + ' ' + hm(ms);
+  }
+  function since(ms) {
+    if (!ms) return '';
+    var days = Math.floor((Date.now() - ms) / 864e5);
+    return days >= 1 ? 'работает ' + days + ' ' + plural(days, 'день', 'дня', 'дней') : 'с ' + hm(ms);
+  }
+  function lvl(v, warn, bad) { return v >= bad ? 'is-bad' : v >= warn ? 'is-warn' : ''; }
+  function row(cls, name, right) {
+    return '<div class="sy-row"><i class="sy-dot ' + cls + '"></i><b>' + esc(name) + '</b><span>' + esc(right) + '</span></div>';
+  }
+
+  function render() {
+    var d = DATA, h = d.health, p = d.people || {}, html = [], bad = 0, warn = 0;
+    if (!h || h.broken) {
+      $('#out').innerHTML = '<div class="sy-sum is-bad">🔴 Сторож не пишет состояние</div>' +
+        '<p class="sy-empty">' + (h ? 'Файл состояния не читается: ' + esc(h.broken) : 'Файла состояния нет — сторож ещё ни разу не отработал.') + ' Нужен Кодер.</p>';
+      return;
+    }
+    var age = (d.now - h.ts * 1000) / 60000;   // сколько минут назад сторож смотрел
+
+    // 1. светофор
+    var rows = [];
+    Object.keys(h.services || {}).forEach(function (k) {
+      var s = h.services[k], cls = '', right;
+      if (s.active === 'unknown' || !s.active) { cls = 'is-off'; right = 'не удалось проверить'; }
+      else if (s.active !== 'active') { cls = 'is-bad'; bad++; right = 'не работает'; }
+      else if (!s.http) { cls = 'is-warn'; warn++; right = 'не отвечает'; }
+      else right = since(s.since_ms);
+      rows.push(row(cls, s.name || k, right));
+    });
+    Object.keys(h.sites || {}).forEach(function (k) {
+      var ok = h.sites[k];
+      if (!ok) warn++;
+      rows.push(row(ok ? '' : 'is-warn', k, ok ? 'открывается' : 'не открывается'));
+    });
+    if (h.gateway != null) {
+      if (!h.gateway) bad++;
+      rows.push(row(h.gateway ? '' : 'is-bad', 'Шлюз в Хельсинки → Телеграм', h.gateway ? 'доходит' : 'не доходит'));
+    }
+    var dogCls = age > 12 ? 'is-bad' : '';
+    if (age > 12) bad++;
+    rows.push(row(dogCls, 'Сторож', age > 12 ? 'молчит ' + Math.round(age) + ' мин' : 'смотрел ' + ago(h.ts * 1000) + (h.paused ? ' · пауза' : '')));
+
+    var sum = bad ? ['is-bad', '🔴 Есть сбой — ' + bad + ' ' + plural(bad, 'система', 'системы', 'систем') + ' в красном']
+      : warn ? ['is-warn', '🟡 Работает, но есть замечания']
+      : ['is-ok', '✅ Всё работает'];
+    html.push('<div class="sy-sum ' + sum[0] + '">' + sum[1] + '</div>');
+    if (h.problems && h.problems.length) {
+      html.push('<div class="sy-card" style="margin-bottom:14px"><h2>Что не так</h2><div class="sy-list">' +
+        h.problems.map(function (t) { return '<div class="sy-p">' + esc(plain(t)) + '</div>'; }).join('') + '</div></div>');
+    }
+    html.push('<div class="sy-grid">');
+    html.push('<section class="sy-card"><h2>Светофор</h2>' + rows.join('') + '</section>');
+
+    // 2. сервер
+    var sv = h.server || {}, certs = h.certs || {};
+    var certMin = Object.keys(certs).reduce(function (m, k) { return certs[k] == null ? m : Math.min(m, certs[k]); }, 999);
+    var loadPct = sv.load15 != null ? Math.round(100 * sv.load15 / (sv.cpus || 1)) : null;
+    function pctv(v) { return v == null ? '—' : v + '%'; }
+    function kv(label, val, cls, pct) {
+      return '<div><small>' + label + '</small><b class="' + (cls || '') + '">' + val + '</b>' +
+        (pct != null ? '<div class="sy-bar"><i class="' + (cls || '') + '" style="width:' + Math.min(100, pct) + '%"></i></div>' : '') + '</div>';
+    }
+    html.push('<section class="sy-card"><h2>Сервер <small>RuVDS, Королёв</small></h2><div class="sy-kv">' +
+      kv('Диск', pctv(sv.disk_pct), sv.disk_pct == null ? '' : lvl(sv.disk_pct, 75, 85), sv.disk_pct) +
+      kv('Память', pctv(sv.mem_pct), sv.mem_pct == null ? '' : lvl(sv.mem_pct, 80, 90), sv.mem_pct) +
+      kv('Нагрузка', loadPct != null ? loadPct + '%' : '—', loadPct != null ? lvl(loadPct, 100, 200) : '', loadPct) +
+      kv('Сертификат', certMin < 999 ? certMin + ' дн.' : '—', certMin < 10 ? 'is-bad' : certMin < 20 ? 'is-warn' : '') +
+      '</div></section>');
+
+    // 3. бэкап
+    var b = h.backup;
+    html.push('<section class="sy-card"><h2>Бэкап</h2>' + (b
+      ? row(b.ok ? '' : 'is-bad', 'Последний: ' + ago(b.ts * 1000), (b.ok ? 'проверен' : 'ошибка') + (b.note ? ' · ' + b.note : ''))
+      : row('is-off', 'Ещё не настроен', 'следующий этап')) + '</section>');
+
+    // 4. люди
+    if (p.error) {
+      html.push('<section class="sy-card"><h2>Люди</h2><p class="sy-empty">Базы не читаются: ' + esc(p.error) + '</p></section>');
+    } else {
+      html.push('<section class="sy-card"><h2>Люди <small>сегодня · за 7 дней</small></h2><div class="sy-kv">' +
+        kv('В Телеграм-боте', (p.tg_today || 0) + ' · ' + (p.tg_week || 0)) +
+        kv('Сдано домашек', (p.hw_today || 0) + ' · ' + (p.hw_week || 0)) +
+        kv('Сигналов «?»', (p.help_today || 0) + ' · ' + (p.help_week || 0)) +
+        '</div></section>');
+      var last = p.last || [];
+      html.push('<section class="sy-card"><h2>Кто что делал последним</h2>' + (last.length
+        ? '<div class="sy-list">' + last.map(function (x) {
+            return '<div class="sy-p"><b>' + esc(x.name) + ' · ' + ago(x.at) + '</b><small>' + esc(x.where) + ': ' + esc(x.what) + '</small></div>';
+          }).join('') + '</div>'
+        : '<p class="sy-empty">За неделю никто ничего не делал в боте и не сдавал домашек.</p>') + '</section>');
+    }
+
+    // 5. ошибки и перезапуски
+    var errs = (h.last_errors || []).slice().reverse();
+    var rest = (h.restarts || []).slice().reverse();
+    html.push('<section class="sy-card"><h2>Ошибки <small>последние 10</small></h2>' + (errs.length
+      ? '<div class="sy-list">' + errs.map(function (e) {
+          var m = /-(\d\d)-(\d\d)[ T](\d\d:\d\d)/.exec(e.ts || '');
+          return '<div class="sy-p"><b>' + (m ? m[2] + '.' + m[1] + ' ' + m[3] : esc(e.ts)) + ' · ' + esc(e.svc) + '</b><small class="sy-err">' + esc(plain(e.text)) + '</small></div>';
+        }).join('') + '</div>'
+      : '<p class="sy-empty">Ошибок нет.</p>') +
+      (rest.length ? '<h2 style="margin-top:14px">Перезапуски сторожем</h2><div class="sy-list">' + rest.map(function (r) {
+          var s = (h.services || {})[r.svc];
+          return '<div class="sy-p"><b>' + esc(s ? s.name : r.svc) + '</b><small>' + ago(r.ts * 1000) + '</small></div>';
+        }).join('') + '</div>' : '') + '</section>');
+
+    html.push('</div>');
+    html.push('<p class="sy-foot">на сервере: ' + esc(h.commit || '—') + '</p>');
+    $('#out').innerHTML = html.join('');
+  }
+
+  function freshLine() {
+    if (STOP) return;
+    var err = ERR, t = LOADED ? 'Обновлено ' + ago(LOADED) + ' · само раз в минуту' : '';
+    $('#fresh').innerHTML = (err ? '<b style="color:var(--bad, #f87171)">' + err + '</b> ' : '') + t +
+      '<button type="button" data-act="reload">Обновить</button>';
+  }
+
+  function load() {
+    if (BUSY || STOP) return;   // прошлый запрос ещё идёт — не наслаиваем
+    BUSY = true;
+    get().then(function (d) {
+      BUSY = false;
+      DATA = d; LOADED = Date.now(); ERR = ''; render(); freshLine();
+    }, function (e) {
+      BUSY = false;
+      if (e && e.bad) {
+        STOP = true;
+        clearInterval(TIMER);
+        $('#fresh').innerHTML = 'Ключ не подошёл. Открой <a href="index.html">Кабинет</a> и проверь вход.';
+        return;
+      }
+      ERR = DATA ? 'Сервер не ответил — показываю прошлые данные.' : 'Сервер не ответил. Проверь интернет.';
+      freshLine();
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-act="reload"]')) load();
+  });
+  // вернулись на вкладку — сразу свежие данные, а не ждать минуту
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && Date.now() - LOADED > 30000) load();
+  });
+
+  if (!KEY) {
+    $('#fresh').innerHTML = 'На этом устройстве Кабинет ещё не открыт. Открой <a href="index.html">Кабинет</a>, войди — и вернись сюда.';
+    return;
+  }
+  load();
+  TIMER = setInterval(function () { if (!document.hidden) load(); }, 60000);
+  setInterval(function () { if (LOADED) freshLine(); }, 15000);
+})();
+</script>
+</body>
+</html>

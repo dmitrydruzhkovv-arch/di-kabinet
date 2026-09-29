@@ -93,7 +93,8 @@
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     undo:  '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
     photo: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/>',
-    chat:  '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>'
+    chat:  '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+    pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>'
   };
   function ic(n, cls) {
     return '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + IC[n] + '</svg>';
@@ -466,6 +467,7 @@
       return '<a href="#' + t[0] + '" data-tab="' + t[0] + '">' + ic(t[0]) + '<span>' + t[1] + '</span></a>';
     }).join('') +
       '<a href="perepiska.html">' + ic('chat') + '<span>Переписка</span></a>' +   // что бот пишет людям (28.09)
+      '<a href="sistemy.html">' + ic('pulse') + '<span>Системы</span></a>' +   // пульт: что работает, сервер, люди (ТЗ 13, 29.09)
       '<a href="' + SCHOOL + '" target="_blank" rel="noopener">' + ic('school') + '<span>Школа</span></a>' +
       '<a href="' + HUB + '" target="_blank" rel="noopener">' + ic('link') + '<span>Ссылки</span></a>';
 
