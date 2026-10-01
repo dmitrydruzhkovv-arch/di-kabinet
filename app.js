@@ -1767,6 +1767,7 @@
       case 'tr-x': TR.sel = null; renderTrain(); break;
       case 'tr-plus': trPlus(+t.getAttribute('data-n')); break;
       case 'tr-day-open': TR.addDay = !TR.addDay; renderTrain(); break;
+      case 'tr-day-next': trDayNext(); break;
       case 'tr-col-del': trColDel(); break;
       case 'tr-row-del': trRowDel(); break;
       case 'ok-week': V.oknaNext = t.getAttribute('data-n') === '1'; renderOkna(); break;
@@ -1937,7 +1938,7 @@
       h += '<div class="tr-wrap"><table class="tr-tbl"><thead><tr><th class="tr-n">Упражнение</th>' +
         cols.map(function (d) {
           return '<th class="tr-d' + (d === t ? ' is-today' : '') + (sel && sel.k === 'col' && sel.date === d ? ' is-sel' : '') + '"><button type="button" data-act="tr-col" data-date="' + d + '" aria-label="День ' + dm(d) + '"><span>' + DOW_S[dowOf(d)] + '</span><b>' + ddmm(d) + '</b></button></th>';
-        }).join('') + '<th class="tr-s">Сумма</th></tr></thead><tbody>' +
+        }).join('') + '<th class="tr-add"><button type="button" data-act="tr-day-next" title="Добавить следующий день" aria-label="Добавить следующий день">' + ic('plus') + '</button></th><th class="tr-s">Сумма</th></tr></thead><tbody>' +
         rows.map(function (r) {
           return '<tr data-id="' + esc(r.id) + '"><td class="tr-n"><button class="tr-grip" type="button" data-act="tr-grip" data-id="' + esc(r.id) + '" aria-label="Переместить: ' + esc(r.n) + '. Тяни или жми стрелки вверх и вниз" title="Перетащить">' +
             '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg></button>' +
@@ -1946,19 +1947,19 @@
               var n = trGet(r.id, d), on = sel && sel.k === 'cell' && sel.rid === r.id && sel.date === d;
               return '<td class="tr-d' + (d === t ? ' is-today' : '') + '"><button class="tr-c mono' + (n ? ' has' : '') + (on ? ' is-sel' : '') + '" type="button" data-act="tr-cell" data-id="' + esc(r.id) + '" data-date="' + d + '" aria-label="' + esc(r.n) + ', ' + dm(d) + ': ' + n + '">' + (n || '·') + '</button></td>';
             }).join('') +
-            '<td class="tr-s mono"><b>' + trSum(r.id, cols) + '</b></td></tr>';
+            '<td class="tr-add" aria-hidden="true"></td><td class="tr-s mono"><b>' + trSum(r.id, cols) + '</b></td></tr>';
         }).join('') +
         '</tbody>' + (rows.length > 1 && cols.length ? '<tfoot><tr><td class="tr-n">Всего за день</td>' + cols.map(function (d) {
           var s = rows.reduce(function (a, r) { return a + trGet(r.id, d); }, 0);
           return '<td class="tr-d mono' + (d === t ? ' is-today' : '') + '">' + (s || '·') + '</td>';
-        }).join('') + '<td class="tr-s mono"><b>' + rows.reduce(function (a, r) { return a + trSum(r.id, cols); }, 0) + '</b></td></tr></tfoot>' : '') +
+        }).join('') + '<td class="tr-add" aria-hidden="true"></td><td class="tr-s mono"><b>' + rows.reduce(function (a, r) { return a + trSum(r.id, cols); }, 0) + '</b></td></tr></tfoot>' : '') +
         '</table></div>';
     }
 
     h += '<form class="tr-form" data-act="tr-add"><label class="sr" for="trN">Новое упражнение</label>' +
       '<input id="trN" name="t" maxlength="40" autocomplete="off" placeholder="Новое упражнение">' +
       '<button class="btn2 btn2--mint" type="submit">Добавить</button></form>' +
-      '<p class="tr-hint">Тяни «⋮⋮» слева (или жми на неё и стрелки ↑ ↓) — меняй порядок. Нажми на название — переименовать или убрать. Нажми на дату — убрать день.</p>';
+      '<p class="tr-hint">Тяни «⋮⋮» слева (или жми на неё и стрелки ↑ ↓) — меняй порядок. Нажми на название — переименовать или убрать. «+» в шапке таблицы — следующий день, «День» — любая дата. Нажми на дату — убрать день.</p>';
 
     h += trPanel(sel);
     root.innerHTML = h;
@@ -1970,7 +1971,10 @@
     if (wrap) {
       if (TR.show) {   // новый день: показать его, а не конец таблицы
         var nb = $('th [data-date="' + TR.show + '"]', wrap);
-        if (nb) wrap.scrollLeft = Math.max(0, nb.parentNode.offsetLeft - wrap.clientWidth / 2);
+        if (nb) {
+          var nx = nb.parentNode.nextElementSibling;
+          wrap.scrollLeft = nx && nx.classList.contains('tr-add') ? wrap.scrollWidth : Math.max(0, nb.parentNode.offsetLeft - wrap.clientWidth / 2);
+        }
         TR.show = null; TR.scroll = false;
       } else if (TR.scroll) { wrap.scrollLeft = wrap.scrollWidth; TR.scroll = false; }
       else if (keep != null) wrap.scrollLeft = keep;
@@ -2031,6 +2035,21 @@
     v.sort();
     if (v.length) setCfg(id, v); else drop('cfg', id);
   }
+  // «+» перед «Сумма»: следующий день после последнего столбца (пока дней нет — сегодня)
+  function trAddDay(d) {
+    if (!trValidDate(d)) { toast('Не разобрал дату — выбери из календаря'); return; }
+    if (trCols().indexOf(d) >= 0) toast('Этот день уже есть в таблице');
+    else trColSet(d, true);
+    TR.sel = null; TR.addDay = false; TR.show = d; renderTrain();
+  }
+  var trNextAt = 0;
+  function trDayNext() {
+    var now = Date.now();
+    if (now - trNextAt < 350) return;   // двойной тап не должен добавлять два дня
+    trNextAt = now;
+    var c = trCols();
+    trAddDay(c.length ? addDays(c[c.length - 1], 1) : todayIso());
+  }
   function trColDel() {
     var s = TR.sel;
     if (!s || s.k !== 'col') return;
@@ -2070,11 +2089,7 @@
       TR.sel = null; f.t.value = ''; renderTrain();
       var inp = $('#trN'); if (inp) inp.focus({ preventScroll: true });
     } else if (act === 'tr-day') {
-      var d = f.d.value;
-      if (!trValidDate(d)) { toast('Не разобрал дату — выбери из календаря'); return; }
-      if (trCols().indexOf(d) >= 0) toast('Этот день уже есть в таблице');
-      else trColSet(d, true);
-      TR.addDay = false; TR.show = d; renderTrain();
+      trAddDay(f.d.value);
     } else if (act === 'tr-set') {
       if (!s || s.k !== 'cell' || f.n.value === '') return;
       trSet(s.rid, s.date, f.n.value);
