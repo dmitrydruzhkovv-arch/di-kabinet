@@ -31,7 +31,7 @@
   var SCHOOL = 'https://dmitrydruzhkovv-arch.github.io/uroki-gagarina/';
   var ZAPIS_URL = 'https://dmitrydruzhkovv-arch.github.io/di-kabinet/zapis.html';   // живая запись (28.09)
   var KINDS = ['events', 'blocks', 'items', 'cfg'];
-  var TABS = ['week', 'list', 'okna'];
+  var TABS = ['week', 'list', 'okna', 'train'];
   // Расписание D. живёт по Екатеринбургу (МСК+2). Окна для родителя из другого
   // пояса пересчитываются: переключатель 0 / +1 / +2 / » (+3…+6) во вкладке «Окна».
   var HOME_MSK = 2;
@@ -94,7 +94,8 @@
     undo:  '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
     photo: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/>',
     chat:  '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
-    pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>'
+    pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>',
+    train: '<circle cx="9.5" cy="4" r="1.7"/><path d="M4.5 9.5q5-2.2 10 0l-2 5.5h-6z"/><path d="M4.5 9.5c-1.4 1.6-1.6 4-1.2 6.5"/><path d="M14.5 9.5c1-2.6 4-2.6 5-.4V5"/><path d="M20 5.5l-.4 5q-2.6 1.2-5.2.4"/><path d="M8 15l-.6 6M12 15l.6 6"/>'
   };
   function ic(n, cls) {
     return '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + IC[n] + '</svg>';
@@ -462,14 +463,14 @@
   var FAB, SH = { el: null, bg: null, onSubmit: null, lastFocus: null };
 
   function mountShell() {
-    var tabs = [['week', 'Неделя'], ['list', 'Чек-лист'], ['okna', 'Окна']];
+    var tabs = [['week', 'Неделя'], ['list', 'Чек-лист'], ['okna', 'Окна'], ['train', 'Тренировка']];
     var links = tabs.map(function (t) {
-      return '<a href="#' + t[0] + '" data-tab="' + t[0] + '">' + ic(t[0]) + '<span>' + t[1] + '</span></a>';
+      return '<a href="#' + t[0] + '" data-tab="' + t[0] + '" title="' + t[1] + '" aria-label="' + t[1] + '">' + ic(t[0]) + '<span>' + t[1] + '</span></a>';
     }).join('') +
-      '<a href="perepiska.html">' + ic('chat') + '<span>Переписка</span></a>' +   // что бот пишет людям (28.09)
-      '<a href="sistemy.html">' + ic('pulse') + '<span>Системы</span></a>' +   // пульт: что работает, сервер, люди (ТЗ 13, 29.09)
-      '<a href="' + SCHOOL + '" target="_blank" rel="noopener">' + ic('school') + '<span>Школа</span></a>' +
-      '<a href="' + HUB + '" target="_blank" rel="noopener">' + ic('link') + '<span>Ссылки</span></a>';
+      '<a href="perepiska.html" title="Переписка" aria-label="Переписка">' + ic('chat') + '<span>Переписка</span></a>' +   // что бот пишет людям (28.09)
+      '<a href="sistemy.html" title="Системы" aria-label="Системы">' + ic('pulse') + '<span>Системы</span></a>' +   // пульт: что работает, сервер, люди (ТЗ 13, 29.09)
+      '<a href="' + SCHOOL + '" target="_blank" rel="noopener" title="Школа" aria-label="Школа">' + ic('school') + '<span>Школа</span></a>' +
+      '<a href="' + HUB + '" target="_blank" rel="noopener" title="Ссылки" aria-label="Ссылки">' + ic('link') + '<span>Ссылки</span></a>';
 
     $('#kbTop').innerHTML =
       '<div class="kb-brand">' +
@@ -479,6 +480,7 @@
         '</div>' +
         '<a class="kb-name" href="#week">Кабинет</a></div>' +
       '<nav class="kb-tabs" aria-label="Разделы">' + links + '</nav>' +
+      '<span class="kb-clock mono js-clock" aria-label="Время">' + hhmm(nowMin()) + '</span>' +   // часы на всех страницах (01.10)
       '<button class="kb-status" id="kbStatus" type="button" data-act="settings" data-s="local"><i></i><span>локально</span></button>' +
       '<button class="kb-ibtn" type="button" data-act="settings" aria-label="Хранение и копия">' + ic('set') + '</button>';
     $('#kbNav').innerHTML = links;
@@ -536,6 +538,7 @@
     paintStatus();
     if (V.tab === 'week') renderWeek(anim);
     else if (V.tab === 'list') renderList();
+    else if (V.tab === 'train') renderTrain();
     else renderOkna();
   }
 
@@ -1758,6 +1761,14 @@
       case 'it-menu': openItem(id); break;
       case 'it-count': countItem(id, +t.getAttribute('data-n')); break;
       case 'list-meta': openListMeta(); break;
+      case 'tr-cell': TR.sel = { k: 'cell', rid: id, date: t.getAttribute('data-date') }; renderTrain(); break;
+      case 'tr-row': TR.sel = { k: 'row', rid: id }; renderTrain(); break;
+      case 'tr-col': TR.sel = { k: 'col', date: t.getAttribute('data-date') }; renderTrain(); break;
+      case 'tr-x': TR.sel = null; renderTrain(); break;
+      case 'tr-plus': trPlus(+t.getAttribute('data-n')); break;
+      case 'tr-day-open': TR.addDay = !TR.addDay; renderTrain(); break;
+      case 'tr-col-del': trColDel(); break;
+      case 'tr-row-del': trRowDel(); break;
       case 'ok-week': V.oknaNext = t.getAttribute('data-n') === '1'; renderOkna(); break;
       case 'ok-slot': setCfg('slot', +t.getAttribute('data-m')); renderOkna(); break;
       case 'ok-tz': V.tz = +t.getAttribute('data-n'); renderOkna(); break;
@@ -1789,14 +1800,16 @@
   }
 
   function onSubmit(e) {
-    var f = e.target;
-    if (f.getAttribute('data-act') !== 'it-add') return;
+    var f = e.target, fa = f.getAttribute('data-act');
+    if (/^tr-/.test(fa || '')) { e.preventDefault(); trSubmit(f, fa); return; }
+    if (fa !== 'it-add') return;
     e.preventDefault();
     var v = f.t.value.trim();
     if (v) addItem(f.getAttribute('data-block'), v);
   }
 
   function onKey(e) {
+    if (trGripKey(e)) return;
     if (e.key === 'Escape') { closeSheet(); return; }
     if (isSheetOpen() || e.metaKey || e.ctrlKey || e.altKey) return;
     var tag = (e.target.tagName || '').toLowerCase();
@@ -1837,6 +1850,287 @@
     lsSet(LS.key, m[1]);
     lsSet(LS.linked, false);
     history.replaceState(null, '', location.pathname + location.search + '#week');
+  }
+
+  /* ═════════ 15б. раздел «Тренировка» (D, 01.10) ═════════
+     Таблица: строки — упражнения, столбцы — дни, в ячейке — сколько сделано, справа сумма.
+     Живёт в cfg, поэтому сервер не меняем и телефон с Маком видят одно и то же.
+     Каждая запись cfg целиком перезаписывается более поздней правкой, поэтому всё разбито
+     по месяцам — запись не растёт выше 8 КБ (MAX_OBJ на сервере):
+       tr_order       — порядок упражнений ["r…", …] (одна запись на всю перетяжку)
+       tr_<id>        — упражнение {n: название}
+       tc_<ггмм>      — дни-столбцы месяца ["дд", …]
+       td_<id>_<ггмм> — счётчики месяца {"дд": число}
+     Одновременная правка одного месяца с двух устройств, когда одно было без связи, — побеждает позднейшая. */
+
+  var TR = { sel: null, addDay: false, scroll: true, show: null };
+
+  function trOrder() { var o = cfg('tr_order', []); return Array.isArray(o) ? o : []; }
+  function trRows() {
+    var ord = trOrder();
+    return Object.keys(S.cfg).filter(function (k) { return /^tr_r[0-9a-z]+$/.test(k) && S.cfg[k].v; })
+      .map(function (k) { return { id: k.slice(3), n: String(S.cfg[k].v.n || '') }; })
+      .sort(function (a, b) {
+        var x = ord.indexOf(a.id), y = ord.indexOf(b.id);
+        return ((x < 0 ? 1e6 : x) - (y < 0 ? 1e6 : y)) || a.id.localeCompare(b.id);
+      });
+  }
+  function trRow(rid) { return trRows().filter(function (r) { return r.id === rid; })[0]; }
+  function trCols() {
+    var out = [];
+    Object.keys(S.cfg).forEach(function (k) {
+      var m = /^tc_(\d\d)(\d\d)$/.exec(k), v = S.cfg[k].v;
+      if (!m || !Array.isArray(v)) return;
+      v.forEach(function (dd) { if (/^\d\d$/.test(dd)) out.push('20' + m[1] + '-' + m[2] + '-' + dd); });
+    });
+    return out.sort();
+  }
+  function trMonth(date) { return date.slice(2, 4) + date.slice(5, 7); }
+  function trShard(rid, date) { return 'td_' + rid + '_' + trMonth(date); }
+  function trGet(rid, date) {
+    var v = cfg(trShard(rid, date), null);
+    return v && +v[date.slice(8)] || 0;
+  }
+  function trSet(rid, date, n) {
+    n = Math.max(0, Math.min(99999, Math.round(+n || 0)));
+    if (n === trGet(rid, date)) return;   // без изменений — не пишем и не будим синхронизацию
+    var id = trShard(rid, date), v = clone(cfg(id, null) || {}), dd = date.slice(8);
+    if (n > 0) v[dd] = n; else delete v[dd];
+    if (Object.keys(v).length) setCfg(id, v); else drop('cfg', id);
+  }
+  function trSum(rid, cols) { return cols.reduce(function (a, d) { return a + trGet(rid, d); }, 0); }
+  function trValidDate(d) {
+    return /^\d{4}-\d\d-\d\d$/.test(d) && iso(parseIso(d)) === d && +d.slice(0, 4) >= 2020 && +d.slice(0, 4) <= 2099;
+  }
+
+  function trFigure() {
+    return '<svg class="tr-fig" viewBox="0 0 64 64" aria-hidden="true"><circle cx="27" cy="9" r="4.6"/><path d="M27 14v3"/>' +
+      '<path d="M12 22q15-7 31 0l-6 19H18z"/><path d="M12 22c-4 4-5 12-4 20l1 6"/><path d="M27 24v7M20 28q7 4 14 0"/>' +
+      '<path d="M43 22c3-8 11-8 13-1"/><path d="M56 21v-8"/><rect x="55" y="6" width="7" height="7" rx="3"/>' +
+      '<path d="M62 13l-1 15q-10 4-21 0"/><path d="M22 41l-2 19M33 41l2 19"/></svg>';
+  }
+
+  function renderTrain() {
+    var root = $('#v-train'), rows = trRows(), cols = trCols(), t = todayIso(), sel = TR.sel;
+    var old = $('.tr-wrap', root), keep = old ? old.scrollLeft : null;
+    // то, что D печатал и на чём стоял фокус, переживает перерисовку
+    var dN = $('#trN', root), draftN = dN ? dN.value : '', dD = $('#trD', root), draftD = dD ? dD.value : '';
+    var ae = document.activeElement, focus = ae && root.contains(ae) && ae.getAttribute('data-act')
+      ? { act: ae.getAttribute('data-act'), id: ae.getAttribute('data-id'), date: ae.getAttribute('data-date') } : null;
+    if (sel && sel.k !== 'col' && !trRow(sel.rid)) sel = TR.sel = null;
+
+    var h = '<div class="tr-head">' + trFigure() +
+      '<div class="tr-ttl"><small>Тренировка</small><h1>Сегодня — ' + dm(t) + '</h1></div>' +
+      '<button class="btn2 tr-dbtn" type="button" data-act="tr-day-open">' + ic('plus') + '<span>День</span></button></div>';
+
+    if (TR.addDay) {
+      h += '<form class="tr-form" data-act="tr-day"><label class="sr" for="trD">Дата</label>' +
+        '<input id="trD" type="date" name="d" value="' + t + '" min="2020-01-01" max="2099-12-31" required>' +
+        '<button class="btn2 btn2--mint" type="submit">Добавить день</button></form>';
+    }
+
+    if (!rows.length) {
+      h += '<p class="tr-empty">Впиши первое упражнение — например «Подтягивание» — и добавь день. Дальше жми на ячейку и записывай, сколько сделал.</p>';
+    }
+
+    if (rows.length || cols.length) {
+      h += '<div class="tr-wrap"><table class="tr-tbl"><thead><tr><th class="tr-n">Упражнение</th>' +
+        cols.map(function (d) {
+          return '<th class="tr-d' + (d === t ? ' is-today' : '') + (sel && sel.k === 'col' && sel.date === d ? ' is-sel' : '') + '"><button type="button" data-act="tr-col" data-date="' + d + '" aria-label="День ' + dm(d) + '"><span>' + DOW_S[dowOf(d)] + '</span><b>' + ddmm(d) + '</b></button></th>';
+        }).join('') + '<th class="tr-s">Сумма</th></tr></thead><tbody>' +
+        rows.map(function (r) {
+          return '<tr data-id="' + esc(r.id) + '"><td class="tr-n"><button class="tr-grip" type="button" data-act="tr-grip" data-id="' + esc(r.id) + '" aria-label="Переместить: ' + esc(r.n) + '. Тяни или жми стрелки вверх и вниз" title="Перетащить">' +
+            '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg></button>' +
+            '<button class="tr-name' + (sel && sel.k === 'row' && sel.rid === r.id ? ' is-sel' : '') + '" type="button" data-act="tr-row" data-id="' + esc(r.id) + '">' + esc(r.n) + '</button></td>' +
+            cols.map(function (d) {
+              var n = trGet(r.id, d), on = sel && sel.k === 'cell' && sel.rid === r.id && sel.date === d;
+              return '<td class="tr-d' + (d === t ? ' is-today' : '') + '"><button class="tr-c mono' + (n ? ' has' : '') + (on ? ' is-sel' : '') + '" type="button" data-act="tr-cell" data-id="' + esc(r.id) + '" data-date="' + d + '" aria-label="' + esc(r.n) + ', ' + dm(d) + ': ' + n + '">' + (n || '·') + '</button></td>';
+            }).join('') +
+            '<td class="tr-s mono"><b>' + trSum(r.id, cols) + '</b></td></tr>';
+        }).join('') +
+        '</tbody>' + (rows.length > 1 && cols.length ? '<tfoot><tr><td class="tr-n">Всего за день</td>' + cols.map(function (d) {
+          var s = rows.reduce(function (a, r) { return a + trGet(r.id, d); }, 0);
+          return '<td class="tr-d mono' + (d === t ? ' is-today' : '') + '">' + (s || '·') + '</td>';
+        }).join('') + '<td class="tr-s mono"><b>' + rows.reduce(function (a, r) { return a + trSum(r.id, cols); }, 0) + '</b></td></tr></tfoot>' : '') +
+        '</table></div>';
+    }
+
+    h += '<form class="tr-form" data-act="tr-add"><label class="sr" for="trN">Новое упражнение</label>' +
+      '<input id="trN" name="t" maxlength="40" autocomplete="off" placeholder="Новое упражнение">' +
+      '<button class="btn2 btn2--mint" type="submit">Добавить</button></form>' +
+      '<p class="tr-hint">Тяни «⋮⋮» слева (или жми на неё и стрелки ↑ ↓) — меняй порядок. Нажми на название — переименовать или убрать. Нажми на дату — убрать день.</p>';
+
+    h += trPanel(sel);
+    root.innerHTML = h;
+    root.classList.toggle('has-pan', !!sel);
+
+    if (draftN) $('#trN', root).value = draftN;
+    if (draftD && $('#trD', root)) $('#trD', root).value = draftD;
+    var wrap = $('.tr-wrap', root);
+    if (wrap) {
+      if (TR.show) {   // новый день: показать его, а не конец таблицы
+        var nb = $('th [data-date="' + TR.show + '"]', wrap);
+        if (nb) wrap.scrollLeft = Math.max(0, nb.parentNode.offsetLeft - wrap.clientWidth / 2);
+        TR.show = null; TR.scroll = false;
+      } else if (TR.scroll) { wrap.scrollLeft = wrap.scrollWidth; TR.scroll = false; }
+      else if (keep != null) wrap.scrollLeft = keep;
+    }
+    if (focus) {
+      var q = '[data-act="' + focus.act + '"]' + (focus.id ? '[data-id="' + cssId(focus.id) + '"]' : '') + (focus.date ? '[data-date="' + focus.date + '"]' : '');
+      var fe = $(q, root);
+      if (fe) try { fe.focus({ preventScroll: true }); } catch (x) { fe.focus(); }
+    }
+    trReveal(root);
+  }
+
+  // нижняя панель закрывает ячейку, на которую нажали: подкручиваем страницу, чтобы выбранное было над ней
+  function trReveal(root) {
+    var pan = $('.tr-pan', root), el = $('.tr-c.is-sel, .tr-name.is-sel, th.is-sel button', root);
+    if (!pan || !el) return;
+    var top = pan.getBoundingClientRect().top, b = el.getBoundingClientRect();
+    if (b.bottom > top - 10) window.scrollBy(0, b.bottom - top + 14);
+    else if (b.top < 70) window.scrollBy(0, b.top - 80);
+  }
+
+  function trPanel(sel) {
+    if (!sel) return '';
+    var x = '<button class="tr-x" type="button" data-act="tr-x" aria-label="Закрыть">' + ic('x') + '</button>';
+    if (sel.k === 'cell') {
+      var r = trRow(sel.rid), n = trGet(sel.rid, sel.date);
+      return '<div class="tr-pan" role="group" aria-label="Запись"><div class="tr-pan-h"><div><b>' + esc(r.n) + '</b><small>' + dm(sel.date) + ', ' + DOW_L[dowOf(sel.date)] + '</small></div>' + x + '</div>' +
+        '<div class="tr-pan-v mono">' + n + '</div>' +
+        '<div class="tr-pan-q">' + [[-1, '−1'], [1, '+1'], [5, '+5'], [10, '+10'], [20, '+20']].map(function (q) {
+          return '<button class="btn2" type="button" data-act="tr-plus" data-n="' + q[0] + '">' + q[1] + '</button>';
+        }).join('') + '</div>' +
+        '<form class="tr-form" data-act="tr-set"><label class="sr" for="trV">Поставить число</label>' +
+        '<input id="trV" type="number" name="n" inputmode="numeric" min="0" max="99999" placeholder="Поставить число"><button class="btn2 btn2--mint" type="submit">Записать</button>' +
+        '<button class="btn2" type="button" data-act="tr-plus" data-n="0">Сброс</button></form></div>';
+    }
+    if (sel.k === 'row') {
+      var rr = trRow(sel.rid);
+      return '<div class="tr-pan" role="group" aria-label="Упражнение"><div class="tr-pan-h"><div><b>Упражнение</b><small>переименовать или убрать</small></div>' + x + '</div>' +
+        '<form class="tr-form" data-act="tr-rename"><label class="sr" for="trR">Название</label><input id="trR" name="t" maxlength="40" value="' + esc(rr.n) + '" autocomplete="off">' +
+        '<button class="btn2 btn2--mint" type="submit">Сохранить</button></form>' +
+        '<button class="btn2 btn2--danger tr-del" type="button" data-act="tr-row-del">Убрать упражнение и все его записи</button></div>';
+    }
+    return '<div class="tr-pan" role="group" aria-label="День"><div class="tr-pan-h"><div><b>' + dm(sel.date) + '</b><small>' + DOW_L[dowOf(sel.date)] + '</small></div>' + x + '</div>' +
+      '<button class="btn2 btn2--danger tr-del" type="button" data-act="tr-col-del">Убрать этот день из таблицы</button>' +
+      '<p class="tr-hint">Числа за этот день не стираются: добавишь дату снова — они вернутся.</p></div>';
+  }
+
+  function trPlus(n) {
+    var s = TR.sel;
+    if (!s || s.k !== 'cell') return;
+    trSet(s.rid, s.date, n === 0 ? 0 : trGet(s.rid, s.date) + n);
+    renderTrain();
+  }
+  function trColSet(date, on) {
+    var id = 'tc_' + trMonth(date), dd = date.slice(8), v = cfg(id, []);
+    v = (Array.isArray(v) ? v : []).filter(function (x) { return x !== dd; });
+    if (on) v.push(dd);
+    v.sort();
+    if (v.length) setCfg(id, v); else drop('cfg', id);
+  }
+  function trColDel() {
+    var s = TR.sel;
+    if (!s || s.k !== 'col') return;
+    trColSet(s.date, false);
+    TR.sel = null; renderTrain();
+  }
+  function trRowDel() {
+    var s = TR.sel, r = s && trRow(s.rid);
+    if (!r) return;
+    var btn = $('[data-act="tr-row-del"]');
+    if (btn && !btn.classList.contains('is-armed')) {   // как в остальном Кабинете: второе нажатие подтверждает
+      btn.classList.add('is-armed'); btn.textContent = 'Нажми ещё раз — удалить «' + r.n + '»';
+      setTimeout(function () { if (btn.isConnected) { btn.classList.remove('is-armed'); btn.textContent = 'Убрать упражнение и все его записи'; } }, 3200);
+      return;
+    }
+    var snap = [], ord = trOrder().slice();
+    Object.keys(S.cfg).forEach(function (k) {
+      if (k === 'tr_' + r.id || k.indexOf('td_' + r.id + '_') === 0) { snap.push([k, clone(S.cfg[k].v)]); drop('cfg', k); }
+    });
+    setCfg('tr_order', ord.filter(function (x) { return x !== r.id; }));
+    TR.sel = null; renderTrain();
+    toast('Упражнение «' + r.n + '» убрано', function () {
+      snap.forEach(function (x) { setCfg(x[0], x[1]); });
+      setCfg('tr_order', ord);
+      renderTrain();
+    });
+  }
+  function trSubmit(f, act) {
+    var s = TR.sel;
+    if (act === 'tr-add') {
+      var name = f.t.value.trim().slice(0, 40);
+      if (!name) return;
+      var rid = 'r' + Date.now().toString(36), ord = trRows().map(function (x) { return x.id; });
+      setCfg('tr_' + rid, { n: name });
+      setCfg('tr_order', ord.concat(rid));
+      if (!trCols().length) trColSet(todayIso(), true);   // первая строка — сразу с колонкой «сегодня»
+      TR.sel = null; f.t.value = ''; renderTrain();
+      var inp = $('#trN'); if (inp) inp.focus({ preventScroll: true });
+    } else if (act === 'tr-day') {
+      var d = f.d.value;
+      if (!trValidDate(d)) { toast('Не разобрал дату — выбери из календаря'); return; }
+      if (trCols().indexOf(d) >= 0) toast('Этот день уже есть в таблице');
+      else trColSet(d, true);
+      TR.addDay = false; TR.show = d; renderTrain();
+    } else if (act === 'tr-set') {
+      if (!s || s.k !== 'cell' || f.n.value === '') return;
+      trSet(s.rid, s.date, f.n.value);
+      renderTrain();
+    } else if (act === 'tr-rename') {
+      var r = s && trRow(s.rid), nn = f.t.value.trim().slice(0, 40);
+      if (!r || !nn) return;
+      if (nn !== r.n) setCfg('tr_' + r.id, { n: nn });
+      TR.sel = null; renderTrain();
+    }
+  }
+
+  function trSaveOrder(ids) {
+    var cur = trRows().map(function (x) { return x.id; });
+    if (ids.join() !== cur.join()) setCfg('tr_order', ids);
+  }
+  // порядок строк: тянем «⋮⋮» (или стрелки ↑ ↓ на ней). Строка едет по таблице вживую, на отпускании порядок пишется одной записью
+  function trDragStart(e) {
+    var g = e.target.closest && e.target.closest('.tr-grip');
+    if (!g || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    var tr = g.closest('tr'), body = tr.parentNode, pid = e.pointerId;
+    e.preventDefault();
+    tr.classList.add('is-drag');
+    document.body.classList.add('is-dragging');
+    function move(ev) {
+      if (ev.pointerId !== pid) return;
+      var y = ev.clientY, before = null, sibs = [].slice.call(body.children).filter(function (x) { return x !== tr; });
+      for (var i = 0; i < sibs.length; i++) {
+        var b = sibs[i].getBoundingClientRect();
+        if (y < b.top + b.height / 2) { before = sibs[i]; break; }
+      }
+      if (before !== tr.nextElementSibling) body.insertBefore(tr, before);
+    }
+    function up(ev) {
+      if (ev.pointerId !== pid) return;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      tr.classList.remove('is-drag');
+      document.body.classList.remove('is-dragging');
+      trSaveOrder([].map.call(body.children, function (x) { return x.getAttribute('data-id'); }));
+      renderTrain();
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  }
+  function trGripKey(e) {
+    var g = e.target.closest && e.target.closest('.tr-grip');
+    if (!g || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return false;
+    e.preventDefault();
+    var ids = trRows().map(function (x) { return x.id; }), id = g.getAttribute('data-id'), i = ids.indexOf(id), j = i + (e.key === 'ArrowUp' ? -1 : 1);
+    if (i < 0 || j < 0 || j >= ids.length) return true;
+    ids.splice(i, 1); ids.splice(j, 0, id);
+    trSaveOrder(ids); renderTrain();
+    return true;
   }
 
   /* ═════════ 16. старт ═════════ */
@@ -1892,6 +2186,7 @@
     document.addEventListener('change', onChange);
     document.addEventListener('submit', onSubmit);
     document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', trDragStart);
     window.addEventListener('hashchange', function () { go(location.hash.slice(1)); window.scrollTo(0, 0); });
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) return;
