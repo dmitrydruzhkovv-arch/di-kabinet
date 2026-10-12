@@ -20,7 +20,7 @@
 
   /* ═════════ 1. адреса и справочники ═════════ */
 
-  var LS = { state: 'kab:state:v1', out: 'kab:outbox:v1', key: 'kab:key', linked: 'kab:linked', tab: 'kab:tab', theme: 'kab:theme', api: 'kab:api' };
+  var LS = { state: 'kab:state:v1', out: 'kab:outbox:v1', key: 'kab:key', linked: 'kab:linked', tab: 'kab:tab', theme: 'kab:theme', api: 'kab:api', trsec: 'kab:trsec' };
   // Прямой адрес RF-сервера и запасной через шлюз в Хельсинки (25.09): с VPN до
   // прямого не достать. Шлюз не расшифровывает — пересылает поток на тот же
   // RF-сервер, имена учеников читает только РФ. Не прошла сверка по сети —
@@ -95,6 +95,7 @@
     photo: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/>',
     chat:  '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
     pulse: '<path d="M3 12h4l2.5-6 5 12 2.5-6H21"/>',
+    timer: '<circle cx="12" cy="13.5" r="7.5"/><path d="M12 13.5V9.5M9.5 2.5h5M12 2.5V6"/>',
     train: '<circle cx="9.5" cy="4" r="1.7"/><path d="M4.5 9.5q5-2.2 10 0l-2 5.5h-6z"/><path d="M4.5 9.5c-1.4 1.6-1.6 4-1.2 6.5"/><path d="M14.5 9.5c1-2.6 4-2.6 5-.4V5"/><path d="M20 5.5l-.4 5q-2.6 1.2-5.2.4"/><path d="M8 15l-.6 6M12 15l.6 6"/>'
   };
   function ic(n, cls) {
@@ -1761,7 +1762,11 @@
       case 'it-menu': openItem(id); break;
       case 'it-count': countItem(id, +t.getAttribute('data-n')); break;
       case 'list-meta': openListMeta(); break;
+      case 'tr-sec': trGoSec(t.getAttribute('data-s')); break;
       case 'tr-cell': TR.sel = { k: 'cell', rid: id, date: t.getAttribute('data-date') }; renderTrain(); break;
+      case 'tr-time': TR.sel = { k: 'time', date: t.getAttribute('data-date') }; renderTrain(); break;
+      case 'tr-slot': if (TR.sel) { TR.sel.i = +t.getAttribute('data-i'); renderTrain(); } break;
+      case 'tr-slot-del': trSlotDel(); break;
       case 'tr-row': TR.sel = { k: 'row', rid: id }; renderTrain(); break;
       case 'tr-col': TR.sel = { k: 'col', date: t.getAttribute('data-date') }; renderTrain(); break;
       case 'tr-x': TR.sel = null; renderTrain(); break;
@@ -1770,6 +1775,13 @@
       case 'tr-day-next': trDayNext(); break;
       case 'tr-col-del': trColDel(); break;
       case 'tr-row-del': trRowDel(); break;
+      case 'tr-row-sec': trRowSec(t.getAttribute('data-s')); break;
+      case 'tr-sw-start': trSwStart(); break;
+      case 'tr-sw-stop': trSwStop(); break;
+      case 'tr-sw-reset': trSwReset(); break;
+      case 'mf-z': mfTap(id); break;
+      case 'mf-add': mfAdd(id, +t.getAttribute('data-n')); break;
+      case 'mf-view': MF.view = t.getAttribute('data-v') === 'b' ? 'b' : 'f'; renderTrain(); break;
       case 'ok-week': V.oknaNext = t.getAttribute('data-n') === '1'; renderOkna(); break;
       case 'ok-slot': setCfg('slot', +t.getAttribute('data-m')); renderOkna(); break;
       case 'ok-tz': V.tz = +t.getAttribute('data-n'); renderOkna(); break;
@@ -1798,6 +1810,12 @@
     else if (act === 'nx-tick') tickNext(t);
     else if (act === 'hr-on' || act === 'hr-a' || act === 'hr-b') hoursChange(t);
     else if (act === 'import' && t.files && t.files[0]) importData(t.files[0]);
+  }
+
+  // время тренировки разбирается на лету: под полем видно, что запишется
+  function onInput(e) {
+    var t = e.target;
+    if (t.getAttribute && t.getAttribute('data-act') === 'tr-dur') trDurPreview(t);
   }
 
   function onSubmit(e) {
@@ -1853,34 +1871,55 @@
     history.replaceState(null, '', location.pathname + location.search + '#week');
   }
 
-  /* ═════════ 15б. раздел «Тренировка» (D, 01.10) ═════════
-     Таблица: строки — упражнения, столбцы — дни, в ячейке — сколько сделано, справа сумма.
+  /* ═════════ 15б. раздел «Тренировка» (D, 01.10; секции, время, подходы и карта МФР — 12.10) ═════════
+     Секции «Растяжка», «Силовые», «Кардио» — таблицы: строки — упражнения, столбцы — дни,
+     в ячейке — подходы и их сумма, сверху строка «Время». «МФР» — карта тела: нажал на зону —
+     один прокат за сегодня, сто прокатов закрашивают её целиком.
      Живёт в cfg, поэтому сервер не меняем и телефон с Маком видят одно и то же.
      Каждая запись cfg целиком перезаписывается более поздней правкой, поэтому всё разбито
      по месяцам — запись не растёт выше 8 КБ (MAX_OBJ на сервере):
-       tr_order       — порядок упражнений ["r…", …] (одна запись на всю перетяжку)
-       tr_<id>        — упражнение {n: название}
-       tc_<ггмм>      — дни-столбцы месяца ["дд", …]
-       td_<id>_<ггмм> — счётчики месяца {"дд": число}
+       tr_order        — порядок упражнений ["r…", …] (одна запись на всю перетяжку, все секции подряд)
+       tr_<id>         — упражнение {n: название, s: секция}; без s — «Силовые» (всё, что вписано до 12.10)
+       tc_<ггмм>       — дни-столбцы месяца ["дд", …] у «Силовых»; tcst_<ггмм>, tcca_<ггмм> — у растяжки и кардио
+       td_<id>_<ггмм>  — записи месяца {"дд": число | [подход, подход, …]}
+       tm<с>_<ггмм>    — время тренировок секции за месяц {"дд": [секунды, …]}, по числу на тренировку
+       sw_run          — идущий секундомер {s: секция, t0: когда запущен}; не tr_r…: так зовутся упражнения
+       mz_<зона>_<гг>  — МФР: прокаты зоны за год {"ммдд": число}
      Одновременная правка одного месяца с двух устройств, когда одно было без связи, — побеждает позднейшая. */
 
-  var TR = { sel: null, addDay: false, scroll: true, show: null };
+  var TR_SECS = [['st', 'Растяжка'], ['si', 'Силовые'], ['mf', 'МФР'], ['ca', 'Кардио']];
+  var TR_EX = { st: 'Складка', si: 'Подтягивание', ca: 'Бег' };
+  var TR_MAX_SETS = 20, TR_MAX_TIMES = 6;
+  var TR = { sec: 'si', sel: null, addDay: false, scroll: true, show: null, timer: 0, swAt: 0 };
+
+  function trIsTable(s) { return s === 'st' || s === 'si' || s === 'ca'; }
+  function trSecName(s) { var q = TR_SECS.filter(function (x) { return x[0] === s; })[0]; return q ? q[1] : ''; }
+  function trGoSec(s) {
+    if (!trSecName(s) || s === TR.sec) return;
+    TR.sec = s; lsSet(LS.trsec, s);
+    TR.sel = null; TR.addDay = false; TR.scroll = true; MF.sel = null;
+    renderTrain();
+  }
+  function trAdd(list) { return list.reduce(function (a, n) { return a + n; }, 0); }
 
   function trOrder() { var o = cfg('tr_order', []); return Array.isArray(o) ? o : []; }
-  function trRows() {
+  function trAllRows() {
     var ord = trOrder();
     return Object.keys(S.cfg).filter(function (k) { return /^tr_r[0-9a-z]+$/.test(k) && S.cfg[k].v; })
-      .map(function (k) { return { id: k.slice(3), n: String(S.cfg[k].v.n || '') }; })
+      .map(function (k) { var v = S.cfg[k].v; return { id: k.slice(3), n: String(v.n || ''), s: trIsTable(v.s) ? v.s : 'si' }; })
       .sort(function (a, b) {
         var x = ord.indexOf(a.id), y = ord.indexOf(b.id);
         return ((x < 0 ? 1e6 : x) - (y < 0 ? 1e6 : y)) || a.id.localeCompare(b.id);
       });
   }
-  function trRow(rid) { return trRows().filter(function (r) { return r.id === rid; })[0]; }
-  function trCols() {
-    var out = [];
+  function trRows() { return trAllRows().filter(function (r) { return r.s === TR.sec; }); }
+  function trRow(rid) { return trAllRows().filter(function (r) { return r.id === rid; })[0]; }
+  function trRec(n, s) { return s === 'si' ? { n: n } : { n: n, s: s }; }
+  function trColId(sec, ym) { return (sec === 'si' ? 'tc_' : 'tc' + sec + '_') + ym; }
+  function trCols(sec) {
+    var re = new RegExp('^' + trColId(sec || TR.sec, '(\\d\\d)(\\d\\d)') + '$'), out = [];
     Object.keys(S.cfg).forEach(function (k) {
-      var m = /^tc_(\d\d)(\d\d)$/.exec(k), v = S.cfg[k].v;
+      var m = re.exec(k), v = S.cfg[k].v;
       if (!m || !Array.isArray(v)) return;
       v.forEach(function (dd) { if (/^\d\d$/.test(dd)) out.push('20' + m[1] + '-' + m[2] + '-' + dd); });
     });
@@ -1888,20 +1927,151 @@
   }
   function trMonth(date) { return date.slice(2, 4) + date.slice(5, 7); }
   function trShard(rid, date) { return 'td_' + rid + '_' + trMonth(date); }
-  function trGet(rid, date) {
-    var v = cfg(trShard(rid, date), null);
-    return v && +v[date.slice(8)] || 0;
+  // подходы одной клетки; до 12.10 в клетке было одно число — оно читается как один подход
+  function trSets(rid, date) {
+    var v = cfg(trShard(rid, date), null), x = v && v[date.slice(8)];
+    return (Array.isArray(x) ? x : [x]).map(function (n) { return Math.round(+n) || 0; }).filter(function (n) { return n > 0; });
   }
-  function trSet(rid, date, n) {
-    n = Math.max(0, Math.min(99999, Math.round(+n || 0)));
-    if (n === trGet(rid, date)) return;   // без изменений — не пишем и не будим синхронизацию
-    var id = trShard(rid, date), v = clone(cfg(id, null) || {}), dd = date.slice(8);
-    if (n > 0) v[dd] = n; else delete v[dd];
+  function trGet(rid, date) { return trAdd(trSets(rid, date)); }
+  // одна клетка месячной (у МФР — годовой) записи: null стирает клетку, опустевшая запись удаляется целиком
+  function trShardPut(id, key, val) {
+    var v = clone(cfg(id, null) || {});
+    if (val == null) delete v[key]; else v[key] = val;
     if (Object.keys(v).length) setCfg(id, v); else drop('cfg', id);
+  }
+  // какая запись клетки выбрана: её номер или −1 — «новая» (выбранную могли убрать с другого устройства)
+  function trCur(list, i) { return list[i] != null ? i : -1; }
+  function trPutSets(rid, date, sets) {
+    sets = sets.map(function (n) { return Math.max(0, Math.min(99999, Math.round(+n || 0))); }).filter(Boolean).slice(0, TR_MAX_SETS);
+    if (sets.join() === trSets(rid, date).join()) return;   // без изменений — не пишем и не будим синхронизацию
+    trShardPut(trShard(rid, date), date.slice(8), !sets.length ? null : sets.length === 1 ? sets[0] : sets);
   }
   function trSum(rid, cols) { return cols.reduce(function (a, d) { return a + trGet(rid, d); }, 0); }
   function trValidDate(d) {
     return /^\d{4}-\d\d-\d\d$/.test(d) && iso(parseIso(d)) === d && +d.slice(0, 4) >= 2020 && +d.slice(0, 4) <= 2099;
+  }
+
+  /* время тренировки: секунды, в дне обычно одна запись, бывает две */
+  function trTimeId(sec, date) { return 'tm' + sec + '_' + trMonth(date); }
+  function trTimes(sec, date) {
+    var v = cfg(trTimeId(sec, date), null), x = v && v[date.slice(8)];
+    return (Array.isArray(x) ? x : []).map(function (n) { return Math.round(+n) || 0; }).filter(function (n) { return n > 0; });
+  }
+  function trPutTimes(sec, date, list) {
+    list = list.map(function (n) { return Math.max(0, Math.min(86400, Math.round(+n || 0))); }).filter(Boolean).slice(0, TR_MAX_TIMES);
+    if (list.join() === trTimes(sec, date).join()) return;
+    trShardPut(trTimeId(sec, date), date.slice(8), list.length ? list : null);
+  }
+  function trDur(sec) {   // коротко, для клетки: «47 мин», «1 ч 05»
+    var m = Math.max(1, Math.round(sec / 60));
+    return m < 60 ? m + ' мин' : Math.floor(m / 60) + ' ч ' + pad(m % 60);
+  }
+  function trDurLong(sec) {   // точно, для панели: «1 ч 5 мин 12 с»
+    sec = Math.round(sec);
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+    return [h ? h + ' ч' : '', m ? m + ' мин' : '', s ? s + ' с' : ''].filter(Boolean).join(' ') || '0 с';
+  }
+  function trClock(sec) {   // бегущие цифры секундомера: «12:34», «1:02:34»
+    sec = Math.max(0, Math.floor(sec));
+    var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
+    return (h ? h + ':' + pad(m) : m) + ':' + pad(sec % 60);
+  }
+  // D пишет время как привык: «47» — минуты, «1:05» — час пять, «47:30» — минуты и секунды, «1ч 5м», «90 сек».
+  // Что получилось, видно под полем ещё до записи; не разобрали — null, и поле об этом скажет
+  function trParseDur(str) {
+    var s = String(str || '').toLowerCase().replace(/,/g, '.').replace(/\s+/g, ' ').trim(), m, sec = null;
+    if (!s) return null;
+    if ((m = /^(\d{1,3}):([0-5]?\d)(?::([0-5]?\d))?$/.exec(s))) {
+      if (m[3] != null) sec = m[1] * 3600 + m[2] * 60 + +m[3];
+      else sec = +m[1] <= 5 ? m[1] * 3600 + m[2] * 60 : m[1] * 60 + +m[2];
+    } else if (/^\d+(\.\d+)?$/.test(s)) {
+      sec = Math.round(s * 60);
+    } else {
+      var tot = 0, low = 0;   // low — самая мелкая из названных единиц, в секундах
+      var rest = s.replace(/(\d+(?:\.\d+)?) ?(час[а-я]*|ч|мин[а-я]*|м|сек[а-я]*|с|h|m|s)\.?/g, function (q, n, u) {
+        var k = /^[чh]/.test(u) ? 3600 : /^[мm]/.test(u) ? 60 : 1;
+        tot += n * k; low = low ? Math.min(low, k) : k;
+        return '';
+      }).trim();
+      // число без единицы в конце — следующая, более мелкая: «1 ч 5» — пять минут, «5 мин 30» — тридцать секунд
+      if (low > 1 && /^\d+$/.test(rest)) { tot += rest * low / 60; rest = ''; }
+      if (low && !rest) sec = Math.round(tot);
+    }
+    return sec != null && sec >= 1 && sec <= 86400 ? sec : null;
+  }
+  function trDurPreview(inp) {
+    var pre = $('#trPre'), v = inp.value.trim(), sec = trParseDur(v);
+    if (!pre) return;
+    pre.textContent = !v ? '' : sec == null ? 'Не разобрал. Напиши, например, 47 — это минуты, или 1:05' : 'Запишу: ' + trDurLong(sec);
+    pre.classList.toggle('is-bad', !!v && sec == null);
+  }
+
+  /* секундомер: хранится только момент старта, поэтому идёт и при закрытой странице, и на втором устройстве */
+  function trRun() {
+    var v = cfg('sw_run', null);
+    return v && trIsTable(v.s) && +v.t0 > 0 ? { s: v.s, t0: +v.t0 } : null;
+  }
+  function trSwStart() {
+    if (trRun() || !trIsTable(TR.sec)) return;
+    TR.swAt = Date.now();
+    setCfg('sw_run', { s: TR.sec, t0: TR.swAt });
+    renderTrain();
+  }
+  // «Стоп» и «×» встают на место «Старт»: второй тап дрогнувшего пальца не должен в них попасть
+  function trSwFresh() { return Date.now() - TR.swAt < 700; }
+  function trSwStop() {
+    var run = trRun();
+    if (!run || trSwFresh()) return;
+    var sec = Math.round((Date.now() - run.t0) / 1000), date = iso(new Date(run.t0));
+    var back = function () { setCfg('sw_run', run); renderTrain(); };   // остановил по ошибке — идёт дальше с прежнего старта
+    drop('cfg', 'sw_run');
+    if (sec < 10) { renderTrain(); toast('Меньше десяти секунд — не записал', back, 'Пусть идёт'); return; }
+    var was = trTimes(run.s, date), hadCol = trCols(run.s).indexOf(date) >= 0;
+    if (!hadCol) trColSet(date, true, run.s);
+    if (TR.sec === run.s) TR.show = date;
+    if (sec > 6 * 3600) {   // забытый секундомер: выдуманные часы в таблицу не пишем — D впишет сам
+      if (TR.sec !== run.s) { TR.sec = run.s; lsSet(LS.trsec, run.s); TR.show = date; }
+      TR.sel = { k: 'time', date: date };
+      renderTrain();
+      toast('Секундомер шёл ' + trDur(sec) + ' — похоже, забыл остановить. Впиши время сам', back, 'Пусть идёт');
+      return;
+    }
+    // место в дне кончилось — прибавляем к последней записи, а не теряем
+    trPutTimes(run.s, date, was.length < TR_MAX_TIMES ? was.concat(sec) : was.slice(0, -1).concat(Math.min(86400, was[was.length - 1] + sec)));
+    renderTrain();
+    toast(trSecName(run.s) + ', ' + dm(date) + ': ' + trDurLong(sec), function () {
+      trPutTimes(run.s, date, was);
+      if (!hadCol) trColSet(date, false, run.s);
+      renderTrain();
+    });
+  }
+  function trSwReset() {
+    var run = trRun();
+    if (!run || trSwFresh()) return;
+    drop('cfg', 'sw_run');
+    renderTrain();
+    toast('Секундомер сброшен, время не записано', function () { setCfg('sw_run', run); renderTrain(); });
+  }
+  function trSwTick() {
+    var run = trRun(), els = $$('.js-sw');
+    if (!run || V.tab !== 'train' || !els.length) { clearInterval(TR.timer); TR.timer = 0; return; }
+    var t = trClock((Date.now() - run.t0) / 1000);
+    els.forEach(function (n) { n.textContent = t; });
+  }
+  function trSwHtml() {
+    var run = trRun();
+    if (run) {
+      var d0 = new Date(run.t0);
+      return '<div class="tr-sw is-run" role="group" aria-label="Секундомер">' + ic('timer') +
+        '<div class="tr-sw-t"><b class="mono js-sw" role="timer">' + trClock((Date.now() - run.t0) / 1000) + '</b>' +
+        '<small>' + esc(trSecName(run.s)) + ' · идёт с ' + hhmm(d0.getHours() * 60 + d0.getMinutes()) + '</small></div>' +
+        '<button class="btn2 btn2--mint" type="button" data-act="tr-sw-stop">Стоп</button>' +
+        '<button class="btn2 tr-sw-x" type="button" data-act="tr-sw-reset" aria-label="Сбросить без записи" title="Сбросить без записи">' + ic('x') + '</button></div>';
+    }
+    if (!trIsTable(TR.sec)) return '';
+    return '<div class="tr-sw" role="group" aria-label="Секундомер">' + ic('timer') +
+      '<div class="tr-sw-t"><b>Секундомер</b><small>остановишь — время впишется в день</small></div>' +
+      '<button class="btn2 btn2--mint" type="button" data-act="tr-sw-start">Старт</button></div>';
   }
 
   function trFigure() {
@@ -1912,61 +2082,37 @@
   }
 
   function renderTrain() {
-    var root = $('#v-train'), rows = trRows(), cols = trCols(), t = todayIso(), sel = TR.sel;
+    var root = $('#v-train'), sec = TR.sec, tbl = trIsTable(sec), t = todayIso(), sel = TR.sel;
     var old = $('.tr-wrap', root), keep = old ? old.scrollLeft : null;
     // то, что D печатал и на чём стоял фокус, переживает перерисовку
     var dN = $('#trN', root), draftN = dN ? dN.value : '', dD = $('#trD', root), draftD = dD ? dD.value : '';
-    var ae = document.activeElement, focus = ae && root.contains(ae) && ae.getAttribute('data-act')
-      ? { act: ae.getAttribute('data-act'), id: ae.getAttribute('data-id'), date: ae.getAttribute('data-date') } : null;
-    if (sel && sel.k !== 'col' && !trRow(sel.rid)) sel = TR.sel = null;
+    var dV = $('#trV, #trT', root), draftV = dV ? dV.value : '', panWas = root.getAttribute('data-pan') || '';
+    var ae = document.activeElement, focus = '';
+    if (ae && ae.tagName === 'BUTTON' && root.contains(ae) && ae.getAttribute('data-act')) {
+      ['act', 'id', 'date', 'n', 'i', 's', 'v'].forEach(function (k) {
+        var v = ae.getAttribute('data-' + k);
+        if (v != null) focus += '[data-' + k + '="' + cssId(v) + '"]';
+      });
+    }
+    var sr = sel && (sel.k === 'cell' || sel.k === 'row') ? trRow(sel.rid) : null;
+    if (sel && (!tbl || ((sel.k === 'cell' || sel.k === 'row') && (!sr || sr.s !== sec)))) sel = TR.sel = null;
 
     var h = '<div class="tr-head">' + trFigure() +
       '<div class="tr-ttl"><small>Тренировка</small><h1>Сегодня — ' + dm(t) + '</h1></div>' +
-      '<button class="btn2 tr-dbtn" type="button" data-act="tr-day-open">' + ic('plus') + '<span>День</span></button></div>';
+      (tbl ? '<button class="btn2 tr-dbtn" type="button" data-act="tr-day-open">' + ic('plus') + '<span>День</span></button>' : '') + '</div>' +
+      '<div class="seg tr-secs" role="group" aria-label="Секции тренировки">' + TR_SECS.map(function (q) {
+        return '<button type="button" data-act="tr-sec" data-s="' + q[0] + '" aria-pressed="' + (q[0] === sec) + '">' + q[1] + '</button>';
+      }).join('') + '</div>' + trSwHtml();
 
-    if (TR.addDay) {
-      h += '<form class="tr-form" data-act="tr-day"><label class="sr" for="trD">Дата</label>' +
-        '<input id="trD" type="date" name="d" value="' + t + '" min="2020-01-01" max="2099-12-31" required>' +
-        '<button class="btn2 btn2--mint" type="submit">Добавить день</button></form>';
-    }
-
-    if (!rows.length) {
-      h += '<p class="tr-empty">Впиши первое упражнение — например «Подтягивание» — и добавь день. Дальше жми на ячейку и записывай, сколько сделал.</p>';
-    }
-
-    if (rows.length || cols.length) {
-      h += '<div class="tr-wrap"><table class="tr-tbl"><thead><tr><th class="tr-n">Упражнение</th>' +
-        cols.map(function (d) {
-          return '<th class="tr-d' + (d === t ? ' is-today' : '') + (sel && sel.k === 'col' && sel.date === d ? ' is-sel' : '') + '"><button type="button" data-act="tr-col" data-date="' + d + '" aria-label="День ' + dm(d) + '"><span>' + DOW_S[dowOf(d)] + '</span><b>' + ddmm(d) + '</b></button></th>';
-        }).join('') + '<th class="tr-add"><button type="button" data-act="tr-day-next" title="Добавить следующий день" aria-label="Добавить следующий день">' + ic('plus') + '</button></th><th class="tr-s">Сумма</th></tr></thead><tbody>' +
-        rows.map(function (r) {
-          return '<tr data-id="' + esc(r.id) + '"><td class="tr-n"><button class="tr-grip" type="button" data-act="tr-grip" data-id="' + esc(r.id) + '" aria-label="Переместить: ' + esc(r.n) + '. Тяни или жми стрелки вверх и вниз" title="Перетащить">' +
-            '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg></button>' +
-            '<button class="tr-name' + (sel && sel.k === 'row' && sel.rid === r.id ? ' is-sel' : '') + '" type="button" data-act="tr-row" data-id="' + esc(r.id) + '">' + esc(r.n) + '</button></td>' +
-            cols.map(function (d) {
-              var n = trGet(r.id, d), on = sel && sel.k === 'cell' && sel.rid === r.id && sel.date === d;
-              return '<td class="tr-d' + (d === t ? ' is-today' : '') + '"><button class="tr-c mono' + (n ? ' has' : '') + (on ? ' is-sel' : '') + '" type="button" data-act="tr-cell" data-id="' + esc(r.id) + '" data-date="' + d + '" aria-label="' + esc(r.n) + ', ' + dm(d) + ': ' + n + '">' + (n || '·') + '</button></td>';
-            }).join('') +
-            '<td class="tr-add" aria-hidden="true"></td><td class="tr-s mono"><b>' + trSum(r.id, cols) + '</b></td></tr>';
-        }).join('') +
-        '</tbody>' + (rows.length > 1 && cols.length ? '<tfoot><tr><td class="tr-n">Всего за день</td>' + cols.map(function (d) {
-          var s = rows.reduce(function (a, r) { return a + trGet(r.id, d); }, 0);
-          return '<td class="tr-d mono' + (d === t ? ' is-today' : '') + '">' + (s || '·') + '</td>';
-        }).join('') + '<td class="tr-add" aria-hidden="true"></td><td class="tr-s mono"><b>' + rows.reduce(function (a, r) { return a + trSum(r.id, cols); }, 0) + '</b></td></tr></tfoot>' : '') +
-        '</table></div>';
-    }
-
-    h += '<form class="tr-form" data-act="tr-add"><label class="sr" for="trN">Новое упражнение</label>' +
-      '<input id="trN" name="t" maxlength="40" autocomplete="off" placeholder="Новое упражнение">' +
-      '<button class="btn2 btn2--mint" type="submit">Добавить</button></form>' +
-      '<p class="tr-hint">Тяни «⋮⋮» слева (или жми на неё и стрелки ↑ ↓) — меняй порядок. Нажми на название — переименовать или убрать. «+» в шапке таблицы — следующий день, «День» — любая дата. Нажми на дату — убрать день.</p>';
-
-    h += trPanel(sel);
+    h += tbl ? trTableHtml(sec, t, sel) + trPanel(sel) : mfHtml(t);
     root.innerHTML = h;
-    root.classList.toggle('has-pan', !!sel);
+    root.classList.toggle('has-pan', tbl && !!sel);
+    var pan = sel ? [sel.k, sel.rid || '', sel.date || ''].join('|') : '', nV = $('#trV, #trT', root);
+    root.setAttribute('data-pan', pan);
 
-    if (draftN) $('#trN', root).value = draftN;
+    if (draftN && $('#trN', root)) $('#trN', root).value = draftN;
     if (draftD && $('#trD', root)) $('#trD', root).value = draftD;
+    if (draftV && nV && pan === panWas) { nV.value = draftV; if (nV.id === 'trT') trDurPreview(nV); }
     var wrap = $('.tr-wrap', root);
     if (wrap) {
       if (TR.show) {   // новый день: показать его, а не конец таблицы
@@ -1980,56 +2126,159 @@
       else if (keep != null) wrap.scrollLeft = keep;
     }
     if (focus) {
-      var q = '[data-act="' + focus.act + '"]' + (focus.id ? '[data-id="' + cssId(focus.id) + '"]' : '') + (focus.date ? '[data-date="' + focus.date + '"]' : '');
-      var fe = $(q, root);
+      var fe = $(focus, root);
       if (fe) try { fe.focus({ preventScroll: true }); } catch (x) { fe.focus(); }
     }
     trReveal(root);
+    if (trRun() && !TR.timer) TR.timer = setInterval(trSwTick, 1000);
+  }
+
+  function trTableHtml(sec, t, sel) {
+    var rows = trRows(), cols = trCols(sec), h = '';
+    if (TR.addDay) {
+      h += '<form class="tr-form" data-act="tr-day"><label class="sr" for="trD">Дата</label>' +
+        '<input id="trD" type="date" name="d" value="' + t + '" min="2020-01-01" max="2099-12-31" required>' +
+        '<button class="btn2 btn2--mint" type="submit">Добавить день</button></form>';
+    }
+
+    if (!rows.length) {
+      h += '<p class="tr-empty">Впиши первое упражнение — например «' + TR_EX[sec] + '» — и добавь день. Дальше жми на ячейку и записывай, сколько сделал.</p>';
+    }
+
+    if (rows.length || cols.length) {
+      var times = cols.map(function (d) { return trTimes(sec, d); });
+      var timeAll = times.reduce(function (a, tt) { return a + trAdd(tt); }, 0);
+      h += '<div class="tr-wrap"><table class="tr-tbl"><thead><tr><th class="tr-n">Упражнение</th>' +
+        cols.map(function (d) {
+          return '<th class="tr-d' + (d === t ? ' is-today' : '') + (sel && sel.k === 'col' && sel.date === d ? ' is-sel' : '') + '"><button type="button" data-act="tr-col" data-date="' + d + '" aria-label="День ' + dm(d) + '"><span>' + DOW_S[dowOf(d)] + '</span><b>' + ddmm(d) + '</b></button></th>';
+        }).join('') + '<th class="tr-add"><button type="button" data-act="tr-day-next" title="Добавить следующий день" aria-label="Добавить следующий день">' + ic('plus') + '</button></th><th class="tr-s">Сумма</th></tr>' +
+        // сколько шла тренировка: секундомер пишет сюда сам, по нажатию — вписать руками
+        '<tr class="tr-tm"><td class="tr-n">Время</td>' + cols.map(function (d, i) {
+          var tt = times[i], s = trAdd(tt), on = sel && sel.k === 'time' && sel.date === d;
+          return '<td class="tr-d' + (d === t ? ' is-today' : '') + '"><button class="tr-tmc' + (s ? ' has' : '') + (on ? ' is-sel' : '') + '" type="button" data-act="tr-time" data-date="' + d + '" aria-label="Время тренировки, ' + dm(d) + ': ' + (s ? trDurLong(s) : 'не записано') + '">' +
+            (s ? trDur(s) + (tt.length > 1 ? '<small>×' + tt.length + '</small>' : '') : '·') + '</button></td>';
+        }).join('') + '<td class="tr-add" aria-hidden="true"></td><td class="tr-s">' + (timeAll ? trDur(timeAll) : '·') + '</td></tr></thead><tbody>' +
+        rows.map(function (r) {
+          return '<tr data-id="' + esc(r.id) + '"><td class="tr-n"><button class="tr-grip" type="button" data-act="tr-grip" data-id="' + esc(r.id) + '" aria-label="Переместить: ' + esc(r.n) + '. Тяни или жми стрелки вверх и вниз" title="Перетащить">' +
+            '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg></button>' +
+            '<button class="tr-name' + (sel && sel.k === 'row' && sel.rid === r.id ? ' is-sel' : '') + '" type="button" data-act="tr-row" data-id="' + esc(r.id) + '">' + esc(r.n) + '</button></td>' +
+            cols.map(function (d) {
+              var sets = trSets(r.id, d), n = trAdd(sets), on = sel && sel.k === 'cell' && sel.rid === r.id && sel.date === d;
+              return '<td class="tr-d' + (d === t ? ' is-today' : '') + '"><button class="tr-c mono' + (n ? ' has' : '') + (on ? ' is-sel' : '') + '" type="button" data-act="tr-cell" data-id="' + esc(r.id) + '" data-date="' + d + '" aria-label="' + esc(r.n) + ', ' + dm(d) + ': ' + n + (sets.length > 1 ? ', подходы: ' + sets.join(', ') : '') + '">' +
+                (n || '·') + (sets.length > 1 ? '<small>' + (sets.length <= 5 ? sets.join('·') : sets.length + ' подх.') + '</small>' : '') + '</button></td>';
+            }).join('') +
+            '<td class="tr-add" aria-hidden="true"></td><td class="tr-s mono"><b>' + trSum(r.id, cols) + '</b></td></tr>';
+        }).join('') +
+        '</tbody>' + (rows.length > 1 && cols.length ? '<tfoot><tr><td class="tr-n">Всего за день</td>' + cols.map(function (d) {
+          var s = rows.reduce(function (a, r) { return a + trGet(r.id, d); }, 0);
+          return '<td class="tr-d mono' + (d === t ? ' is-today' : '') + '">' + (s || '·') + '</td>';
+        }).join('') + '<td class="tr-add" aria-hidden="true"></td><td class="tr-s mono"><b>' + rows.reduce(function (a, r) { return a + trSum(r.id, cols); }, 0) + '</b></td></tr></tfoot>' : '') +
+        '</table></div>';
+    }
+
+    h += '<form class="tr-form" data-act="tr-add"><label class="sr" for="trN">Новое упражнение</label>' +
+      '<input id="trN" name="t" maxlength="40" autocomplete="off" placeholder="Новое упражнение">' +
+      '<button class="btn2 btn2--mint" type="submit">Добавить</button></form>' +
+      '<p class="tr-hint">Нажми на клетку — запиши подходы. Строка «Время» — сколько шла тренировка: секундомер впишет сам, или нажми на клетку и напиши. Тяни «⋮⋮» слева (или жми на неё и стрелки ↑ ↓) — меняй порядок. Нажми на название — переименовать, перенести в другую секцию или убрать. «+» в шапке таблицы — следующий день, «День» — любая дата. Нажми на дату — убрать день.</p>';
+    return h;
   }
 
   // нижняя панель закрывает ячейку, на которую нажали: подкручиваем страницу, чтобы выбранное было над ней
   function trReveal(root) {
-    var pan = $('.tr-pan', root), el = $('.tr-c.is-sel, .tr-name.is-sel, th.is-sel button', root);
+    var pan = $('.tr-pan', root), el = $('.tr-c.is-sel, .tr-tmc.is-sel, .tr-name.is-sel, th.is-sel button', root);
     if (!pan || !el) return;
     var top = pan.getBoundingClientRect().top, b = el.getBoundingClientRect();
     if (b.bottom > top - 10) window.scrollBy(0, b.bottom - top + 14);
     else if (b.top < 70) window.scrollBy(0, b.top - 80);
   }
 
+  // записи одной клетки таблицей: сверху номер, снизу значение; выбранную правят кнопки и поле, «+» — новая
+  function trSlots(head, vals, cur) {
+    return '<div class="tr-sets" role="group" aria-label="' + head[2] + '"><span class="tr-set-h" aria-hidden="true"><small>' + head[0] + '</small><small>' + head[1] + '</small></span>' +
+      vals.map(function (v, i) {
+        return '<button class="tr-set' + (i === cur ? ' is-sel' : '') + '" type="button" data-act="tr-slot" data-i="' + i + '" aria-pressed="' + (i === cur) + '" aria-label="' + head[0] + ' ' + (i + 1) + ': ' + v + '"><small>' + (i + 1) + '</small><b' + (head[4] ? ' class="mono"' : '') + '>' + v + '</b></button>';
+      }).join('') +
+      '<button class="tr-set tr-set--new' + (cur < 0 ? ' is-sel' : '') + '" type="button" data-act="tr-slot" data-i="-1" aria-pressed="' + (cur < 0) + '" aria-label="' + head[3] + '"><small>' + (vals.length + 1) + '</small><b>+</b></button></div>';
+  }
+
   function trPanel(sel) {
     if (!sel) return '';
     var x = '<button class="tr-x" type="button" data-act="tr-x" aria-label="Закрыть">' + ic('x') + '</button>';
     if (sel.k === 'cell') {
-      var r = trRow(sel.rid), n = trGet(sel.rid, sel.date);
+      var r = trRow(sel.rid), sets = trSets(sel.rid, sel.date), si = trCur(sets, sel.i), n = trAdd(sets);
       return '<div class="tr-pan" role="group" aria-label="Запись"><div class="tr-pan-h"><div><b>' + esc(r.n) + '</b><small>' + dm(sel.date) + ', ' + DOW_L[dowOf(sel.date)] + '</small></div>' + x + '</div>' +
-        '<div class="tr-pan-v mono">' + n + '</div>' +
+        '<div class="tr-pan-v mono">' + n + (sets.length > 1 ? '<small>' + sets.length + ' ' + plural(sets.length, 'подход', 'подхода', 'подходов') + '</small>' : '') + '</div>' +
+        (sets.length ? trSlots(['подход', 'раз', 'Подходы', 'Новый подход', true], sets, si) : '') +
         '<div class="tr-pan-q">' + [[-1, '−1'], [1, '+1'], [5, '+5'], [10, '+10'], [20, '+20']].map(function (q) {
-          return '<button class="btn2" type="button" data-act="tr-plus" data-n="' + q[0] + '">' + q[1] + '</button>';
+          return '<button class="btn2" type="button" data-act="tr-plus" data-n="' + q[0] + '"' + (q[0] < 0 && si < 0 ? ' disabled' : '') + '>' + q[1] + '</button>';
         }).join('') + '</div>' +
-        '<form class="tr-form" data-act="tr-set"><label class="sr" for="trV">Поставить число</label>' +
-        '<input id="trV" type="number" name="n" inputmode="numeric" min="0" max="99999" placeholder="Поставить число"><button class="btn2 btn2--mint" type="submit">Записать</button>' +
-        '<button class="btn2" type="button" data-act="tr-plus" data-n="0">Сброс</button></form></div>';
+        '<form class="tr-form" data-act="tr-set"><label class="sr" for="trV">Сколько в подходе</label>' +
+        '<input id="trV" type="number" name="n" inputmode="numeric" min="0" max="99999" placeholder="' + (si >= 0 ? 'Другое число' : sets.length ? 'Ещё подход' : 'Сколько сделал') + '"><button class="btn2 btn2--mint" type="submit">Записать</button>' +
+        (si >= 0 ? '<button class="btn2" type="button" data-act="tr-slot-del">Убрать</button>' : sets.length ? '<button class="btn2" type="button" data-act="tr-plus" data-n="0">Сброс</button>' : '') + '</form></div>';
+    }
+    if (sel.k === 'time') {
+      var tt = trTimes(TR.sec, sel.date), ti = trCur(tt, sel.i), ts = trAdd(tt);
+      return '<div class="tr-pan" role="group" aria-label="Время тренировки"><div class="tr-pan-h"><div><b>Время тренировки</b><small>' + esc(trSecName(TR.sec)) + ' · ' + dm(sel.date) + ', ' + DOW_L[dowOf(sel.date)] + '</small></div>' + x + '</div>' +
+        '<div class="tr-pan-v">' + (ts ? trDur(ts) : '—') + (tt.length > 1 ? '<small>' + tt.length + ' ' + plural(tt.length, 'тренировка', 'тренировки', 'тренировок') + '</small>' : '') + '</div>' +
+        (tt.length ? trSlots(['тренировка', 'шла', 'Тренировки за день', 'Ещё одна тренировка'], tt.map(trDur), ti) : '') +
+        '<form class="tr-form" data-act="tr-time-set"><label class="sr" for="trT">Сколько шла тренировка</label>' +
+        '<input id="trT" name="t" data-act="tr-dur" maxlength="24" autocomplete="off" placeholder="' + 'Минуты: 47 или 1:05' + '"><button class="btn2 btn2--mint" type="submit">Записать</button>' +
+        (ti >= 0 ? '<button class="btn2" type="button" data-act="tr-slot-del">Убрать</button>' : '') + '</form>' +
+        '<p class="tr-pre" id="trPre" aria-live="polite"></p></div>';
     }
     if (sel.k === 'row') {
       var rr = trRow(sel.rid);
-      return '<div class="tr-pan" role="group" aria-label="Упражнение"><div class="tr-pan-h"><div><b>Упражнение</b><small>переименовать или убрать</small></div>' + x + '</div>' +
+      return '<div class="tr-pan" role="group" aria-label="Упражнение"><div class="tr-pan-h"><div><b>Упражнение</b><small>переименовать, перенести или убрать</small></div>' + x + '</div>' +
         '<form class="tr-form" data-act="tr-rename"><label class="sr" for="trR">Название</label><input id="trR" name="t" maxlength="40" value="' + esc(rr.n) + '" autocomplete="off">' +
         '<button class="btn2 btn2--mint" type="submit">Сохранить</button></form>' +
+        '<div class="seg tr-mv" role="group" aria-label="Секция упражнения">' + TR_SECS.filter(function (q) { return trIsTable(q[0]); }).map(function (q) {
+          return '<button type="button" data-act="tr-row-sec" data-s="' + q[0] + '" aria-pressed="' + (q[0] === rr.s) + '">' + q[1] + '</button>';
+        }).join('') + '</div>' +
         '<button class="btn2 btn2--danger tr-del" type="button" data-act="tr-row-del">Убрать упражнение и все его записи</button></div>';
     }
     return '<div class="tr-pan" role="group" aria-label="День"><div class="tr-pan-h"><div><b>' + dm(sel.date) + '</b><small>' + DOW_L[dowOf(sel.date)] + '</small></div>' + x + '</div>' +
       '<button class="btn2 btn2--danger tr-del" type="button" data-act="tr-col-del">Убрать этот день из таблицы</button>' +
-      '<p class="tr-hint">Числа за этот день не стираются: добавишь дату снова — они вернутся.</p></div>';
+      '<p class="tr-hint">Числа и время за этот день не стираются: добавишь дату снова — они вернутся.</p></div>';
   }
 
+  // быстрые кнопки правят выбранный подход; пока выбран «+», первое нажатие открывает новый подход
   function trPlus(n) {
     var s = TR.sel;
     if (!s || s.k !== 'cell') return;
-    trSet(s.rid, s.date, n === 0 ? 0 : trGet(s.rid, s.date) + n);
+    var sets = trSets(s.rid, s.date), i = trCur(sets, s.i);
+    if (n === 0) {
+      if (!sets.length) return;
+      trPutSets(s.rid, s.date, []);
+      s.i = -1; renderTrain();
+      toast('Запись за день стёрта', function () { trPutSets(s.rid, s.date, sets); renderTrain(); });
+      return;
+    }
+    if (i >= 0) {
+      sets[i] = Math.max(0, sets[i] + n);
+      if (!sets[i]) s.i = -1;
+    } else if (n > 0) {
+      if (sets.length >= TR_MAX_SETS) { toast('В клетке помещается ' + TR_MAX_SETS + ' подходов'); return; }
+      sets.push(n); s.i = sets.length - 1;
+    } else return;
+    trPutSets(s.rid, s.date, sets);
     renderTrain();
   }
-  function trColSet(date, on) {
-    var id = 'tc_' + trMonth(date), dd = date.slice(8), v = cfg(id, []);
+  function trSlotDel() {
+    var s = TR.sel;
+    if (!s) return;
+    if (s.k === 'cell') {
+      var sets = trSets(s.rid, s.date);
+      if (sets[s.i] == null) return;
+      sets.splice(s.i, 1); trPutSets(s.rid, s.date, sets);
+    } else if (s.k === 'time') {
+      var tt = trTimes(TR.sec, s.date);
+      if (tt[s.i] == null) return;
+      tt.splice(s.i, 1); trPutTimes(TR.sec, s.date, tt);
+    } else return;
+    s.i = -1; renderTrain();
+  }
+  function trColSet(date, on, sec) {
+    var id = trColId(sec || TR.sec, trMonth(date)), dd = date.slice(8), v = cfg(id, []);
     v = (Array.isArray(v) ? v : []).filter(function (x) { return x !== dd; });
     if (on) v.push(dd);
     v.sort();
@@ -2077,13 +2326,30 @@
       renderTrain();
     });
   }
+  // упражнение переезжает в другую секцию вместе с записями: его дни из таблицы появляются и там
+  function trRowSec(sec) {
+    var s = TR.sel, r = s && trRow(s.rid);
+    if (!r || !trIsTable(sec) || sec === r.s) return;
+    var have = trCols(sec), add = trCols(r.s).filter(function (d) { return trGet(r.id, d) > 0 && have.indexOf(d) < 0; });
+    add.forEach(function (d) { trColSet(d, true, sec); });
+    setCfg('tr_' + r.id, trRec(r.n, sec));
+    TR.sel = null; renderTrain();
+    toast('«' + r.n + '» — теперь в секции «' + trSecName(sec) + '»', function () {
+      setCfg('tr_' + r.id, trRec(r.n, r.s));
+      var stay = trAllRows().filter(function (x) { return x.s === sec; });   // день, в который за эти секунды что-то вписали, остаётся
+      add.forEach(function (d) {
+        if (!trTimes(sec, d).length && !stay.some(function (x) { return trGet(x.id, d) > 0; })) trColSet(d, false, sec);
+      });
+      renderTrain();
+    });
+  }
   function trSubmit(f, act) {
     var s = TR.sel;
     if (act === 'tr-add') {
       var name = f.t.value.trim().slice(0, 40);
-      if (!name) return;
-      var rid = 'r' + Date.now().toString(36), ord = trRows().map(function (x) { return x.id; });
-      setCfg('tr_' + rid, { n: name });
+      if (!name || !trIsTable(TR.sec)) return;
+      var rid = 'r' + Date.now().toString(36), ord = trAllRows().map(function (x) { return x.id; });
+      setCfg('tr_' + rid, trRec(name, TR.sec));
       setCfg('tr_order', ord.concat(rid));
       if (!trCols().length) trColSet(todayIso(), true);   // первая строка — сразу с колонкой «сегодня»
       TR.sel = null; f.t.value = ''; renderTrain();
@@ -2092,19 +2358,35 @@
       trAddDay(f.d.value);
     } else if (act === 'tr-set') {
       if (!s || s.k !== 'cell' || f.n.value === '') return;
-      trSet(s.rid, s.date, f.n.value);
-      renderTrain();
+      var sets = trSets(s.rid, s.date), i = trCur(sets, s.i);
+      if (i < 0 && sets.length >= TR_MAX_SETS) { toast('В клетке помещается ' + TR_MAX_SETS + ' подходов'); return; }
+      sets[i < 0 ? sets.length : i] = clampInt(f.n.value, 0, 99999, 0);
+      trPutSets(s.rid, s.date, sets);
+      s.i = -1; f.n.value = ''; renderTrain();
+      // с клавиатуры Мака подходы вписываются подряд: число, Enter, число, Enter
+      var iv = $('#trV'); if (iv && !isTouch) iv.focus({ preventScroll: true });
+    } else if (act === 'tr-time-set') {
+      if (!s || s.k !== 'time') return;
+      var sec = trParseDur(f.t.value);
+      if (sec == null) { trDurPreview(f.t); f.t.focus(); return; }
+      var tt = trTimes(TR.sec, s.date), ti = trCur(tt, s.i);
+      if (ti < 0 && tt.length >= TR_MAX_TIMES) { toast('В дне помещается ' + TR_MAX_TIMES + ' тренировок'); return; }
+      tt[ti < 0 ? tt.length : ti] = sec;
+      trPutTimes(TR.sec, s.date, tt);
+      s.i = -1; f.t.value = ''; f.t.blur(); renderTrain();
     } else if (act === 'tr-rename') {
       var r = s && trRow(s.rid), nn = f.t.value.trim().slice(0, 40);
       if (!r || !nn) return;
-      if (nn !== r.n) setCfg('tr_' + r.id, { n: nn });
+      if (nn !== r.n) setCfg('tr_' + r.id, trRec(nn, r.s));
       TR.sel = null; renderTrain();
     }
   }
 
+  // ids — новый порядок строк открытой секции; строки других секций остаются на своих местах
   function trSaveOrder(ids) {
-    var cur = trRows().map(function (x) { return x.id; });
-    if (ids.join() !== cur.join()) setCfg('tr_order', ids);
+    var cur = trAllRows().map(function (x) { return x.id; }), k = 0;
+    var next = cur.map(function (id) { return ids.indexOf(id) >= 0 ? ids[k++] : id; });
+    if (next.join() !== cur.join()) setCfg('tr_order', next);
   }
   // порядок строк: тянем «⋮⋮» (или стрелки ↑ ↓ на ней). Строка едет по таблице вживую, на отпускании порядок пишется одной записью
   function trDragStart(e) {
@@ -2146,6 +2428,188 @@
     ids.splice(i, 1); ids.splice(j, 0, id);
     trSaveOrder(ids); renderTrain();
     return true;
+  }
+
+  /* ═════════ 15в. «МФР» — карта тела (D, 12.10) ═════════
+     Две проекции. Зона — часть тела, которую D прокатывает; левая и правая сторона — одна зона.
+     Нажатие на зону — один прокат за сегодня. Густота цвета — сколько прокатов набрано за всё время:
+     сотый закрашивает зону целиком. Фигура собрана из точек левой половины и отражается сама. */
+
+  var MF_FULL = 100;
+  var MF = { sel: null, view: 'f', pop: null, at: 0, last: null };
+  var MF_Z = {
+    podbor: 'Подбородок', sheyap: 'Шея спереди', sheyaz: 'Шея сзади', trap: 'Верхняя трапеция',
+    deltp: 'Плечо', deltz: 'Задняя дельта', grudv: 'Грудь, верх', grudn: 'Грудь, низ',
+    biceps: 'Бицепс', tric: 'Трицепс', predpl: 'Предплечье',
+    lop: 'Лопаточная зона', shir: 'Широчайшие', poyas: 'Поясница', yagod: 'Ягодицы',
+    bedrob: 'Бедро сбоку', bedrop: 'Бедро спереди', bedrov: 'Бедро внутри', bedroz: 'Бицепс бедра',
+    golen: 'Голень', ikry: 'Икроножные', stopa: 'Стопа'
+  };
+  // [зона или '' — просто часть тела, вид, точки]: m — пара с отражением, c — одна по центру, E и e — то же овалом [cx, cy, rx, ry]
+  var MF_ARM = [
+    ['', 'E', [37, 216, 7, 11]]
+  ];
+  var MF_FIG = {
+    f: [
+      ['', 'e', [100, 24, 15, 18]],
+      ['podbor', 'c', [88, 44.5, 112, 44.5, 110, 54, 90, 54]],
+      ['sheyap', 'c', [90, 57, 110, 57, 112, 68, 88, 68]],
+      ['trap', 'm', [86, 58, 86, 70, 59, 72]],
+      ['deltp', 'm', [57, 74, 44, 77, 36, 90, 37, 106, 49, 104, 56, 90]],
+      ['grudv', 'm', [60, 75, 98.5, 75, 98.5, 93, 59, 93]],
+      ['grudn', 'm', [59, 96, 98.5, 96, 98.5, 114, 67, 116, 59, 108]],
+      ['', 'c', [67, 120, 133, 120, 131, 150, 136, 178, 100, 192, 64, 178, 69, 150]],
+      ['biceps', 'm', [37, 109, 50, 107, 52, 146, 39, 148, 34, 128]],
+      ['predpl', 'm', [37, 153, 51, 151, 44, 201, 34, 202, 31, 176]],
+      ['bedrob', 'm', [61, 190, 72, 184, 73.5, 274, 67, 274, 60, 235]],
+      ['bedrop', 'm', [74.5, 184, 86, 189, 83, 274, 75.5, 274]],
+      ['bedrov', 'm', [88, 191, 98, 198, 97, 236, 92, 274, 85, 274]],
+      ['', 'E', [79, 288, 12, 10]],
+      ['golen', 'm', [66, 302, 92, 302, 90, 336, 86, 368, 74, 368, 67, 336]],
+      ['stopa', 'm', [73, 373, 87, 373, 89, 386, 88, 394, 66, 394, 67, 386]]
+    ].concat(MF_ARM),
+    b: [
+      ['', 'e', [100, 24, 15, 18]],
+      ['sheyaz', 'c', [90, 44.5, 110, 44.5, 111, 59, 89, 59]],
+      ['trap', 'm', [86.5, 48, 86.5, 62, 98.5, 62, 98.5, 72, 59, 72]],
+      ['deltz', 'm', [57, 74, 44, 77, 36, 90, 37, 106, 49, 104, 56, 90]],
+      ['lop', 'c', [60, 75, 140, 75, 138, 110, 62, 110]],
+      ['shir', 'm', [62, 113, 98.5, 113, 98.5, 146, 70, 146, 65, 130]],
+      ['poyas', 'c', [70, 149, 130, 149, 134, 174, 66, 174]],
+      ['yagod', 'm', [64, 177, 98.5, 177, 98.5, 205, 84, 210, 66, 206, 60, 192]],
+      ['tric', 'm', [37, 109, 50, 107, 52, 146, 39, 148, 34, 128]],
+      ['predpl', 'm', [37, 153, 51, 151, 44, 201, 34, 202, 31, 176]],
+      ['bedroz', 'm', [60, 213, 84, 214, 98, 209, 92, 274, 67, 274, 59, 238]],
+      ['', 'E', [79, 288, 12, 9]],
+      ['ikry', 'm', [66, 301, 92, 301, 93, 332, 86, 368, 74, 368, 65, 332]],
+      ['stopa', 'm', [73, 373, 87, 373, 89, 394, 70, 394]]
+    ].concat(MF_ARM)
+  };
+
+  // многоугольник со скруглёнными углами: фигура задаётся точками, а выходит мягкой
+  function mfPath(p, mirror) {
+    var n = p.length / 2, d = '', r = 4.5, q = function (v) { return Math.round(v * 10) / 10; };
+    var X = function (i) { var v = p[2 * ((i + n) % n)]; return mirror ? 200 - v : v; }, Y = function (i) { return p[2 * ((i + n) % n) + 1]; };
+    for (var i = 0; i < n; i++) {
+      var x = X(i), y = Y(i), ax = X(i - 1) - x, ay = Y(i - 1) - y, bx = X(i + 1) - x, by = Y(i + 1) - y;
+      var a = Math.sqrt(ax * ax + ay * ay), b = Math.sqrt(bx * bx + by * by), ra = Math.min(r, a / 2) / a, rb = Math.min(r, b / 2) / b;
+      d += (i ? 'L' : 'M') + q(x + ax * ra) + ' ' + q(y + ay * ra) + 'Q' + q(x) + ' ' + q(y) + ' ' + q(x + bx * rb) + ' ' + q(y + by * rb);
+    }
+    return d + 'Z';
+  }
+  var mfCache = {};
+  function mfShapes(view) {   // [зона, готовые теги без закрывающей скобки]
+    if (mfCache[view]) return mfCache[view];
+    return (mfCache[view] = MF_FIG[view].map(function (s) {
+      var k = s[1], p = s[2], both = k === 'm' || k === 'E', out = [];
+      [false, true].forEach(function (mir) {
+        if (mir && !both) return;
+        out.push(k === 'e' || k === 'E'
+          ? '<ellipse cx="' + (mir ? 200 - p[0] : p[0]) + '" cy="' + p[1] + '" rx="' + p[2] + '" ry="' + p[3] + '"'
+          : '<path d="' + mfPath(p, mir) + '"');
+      });
+      return [s[0], out, k === 'e' || k === 'E' ? 'ellipse' : 'path'];
+    }));
+  }
+  function mfZonesOf(view) {
+    var out = [];
+    MF_FIG[view].forEach(function (s) { if (s[0] && out.indexOf(s[0]) < 0) out.push(s[0]); });
+    return out;
+  }
+
+  function mfId(z, date) { return 'mz_' + z + '_' + date.slice(2, 4); }
+  function mfGet(z, date) { var v = cfg(mfId(z, date), null); return v && +v[date.slice(5, 7) + date.slice(8)] || 0; }
+  function mfSet(z, date, n) {
+    n = Math.max(0, Math.min(99, Math.round(n)));
+    if (n !== mfGet(z, date)) trShardPut(mfId(z, date), date.slice(5, 7) + date.slice(8), n || null);
+  }
+  function mfTotals() {
+    var out = {};
+    Object.keys(S.cfg).forEach(function (k) {
+      var m = /^mz_([a-z0-9]+)_\d\d$/.exec(k), v = S.cfg[k].v;
+      if (!m || !v || typeof v !== 'object') return;
+      Object.keys(v).forEach(function (d) { out[m[1]] = (out[m[1]] || 0) + (+v[d] || 0); });
+    });
+    return out;
+  }
+  function mfLastDay(z) {
+    var best = '';
+    Object.keys(S.cfg).forEach(function (k) {
+      var m = /^mz_([a-z0-9]+)_(\d\d)$/.exec(k), v = S.cfg[k].v;
+      if (!m || m[1] !== z || !v || typeof v !== 'object') return;
+      Object.keys(v).forEach(function (d) {
+        var x = '20' + m[2] + '-' + d.slice(0, 2) + '-' + d.slice(2);
+        if (+v[d] > 0 && x > best) best = x;
+      });
+    });
+    return best;
+  }
+  // «−1» снимает сегодняшний прокат, а если сегодня зону не трогали — последний из прошлых
+  function mfAdd(z, n) {
+    if (!MF_Z[z]) return;
+    var t = todayIso(), cur = mfGet(z, t);
+    if (n > 0) mfSet(z, t, cur + 1);
+    else if (cur > 0) mfSet(z, t, cur - 1);
+    else {
+      var last = mfLastDay(z);
+      if (!last) return;
+      mfSet(z, last, mfGet(z, last) - 1);
+    }
+    MF.sel = z; MF.pop = n > 0 ? z : null;
+    renderTrain();
+    MF.pop = null;
+  }
+  function mfTap(z) {
+    var now = Date.now();
+    if (MF.last === z && now - MF.at < 300) return;   // дрогнул палец: двойное касание — один прокат
+    MF.last = z; MF.at = now;
+    mfAdd(z, 1);
+  }
+  function mfShade(n) { return n ? Math.round((0.14 + 0.86 * Math.min(1, n / MF_FULL)) * 1000) / 1000 : 0; }
+
+  function mfFigHtml(view, tot, day) {
+    return '<svg class="mf-svg" viewBox="0 0 200 400" role="img" aria-label="' + (view === 'f' ? 'Вид спереди' : 'Вид сзади') + '">' +
+      mfShapes(view).map(function (s) {
+        var z = s[0], n = z ? tot[z] || 0 : 0;
+        var at = z ? ' class="mf-z' + (n >= MF_FULL ? ' is-full' : '') + (day[z] ? ' is-day' : '') + (MF.sel === z ? ' is-sel' : '') + (MF.pop === z ? ' is-pop' : '') +
+          '" data-act="mf-z" data-id="' + z + '" fill-opacity="' + mfShade(n) + '"><title>' + MF_Z[z] + ': ' + n + '</title>' : ' class="mf-b">';
+        return s[1].map(function (tag) { return tag + at + '</' + s[2] + '>'; }).join('');
+      }).join('') + '</svg>';
+  }
+  function mfListHtml(view, tot, day) {
+    return '<ul class="mf-list"><li class="mf-lh" aria-hidden="true"><span>Зона</span><span></span><b>всего</b><span>сегодня</span></li>' +
+      mfZonesOf(view).map(function (z) {
+        var n = tot[z] || 0;
+        return '<li class="' + (MF.sel === z ? 'is-sel' : '') + '"><span class="mf-n">' + MF_Z[z] + '</span>' +
+          '<span class="mf-pr" aria-hidden="true"><i style="width:' + Math.min(100, n / MF_FULL * 100) + '%"></i></span>' +
+          '<b class="mono" aria-label="всего ' + n + '">' + n + '</b>' +
+          '<span class="mf-st"><button type="button" data-act="mf-add" data-id="' + z + '" data-n="-1" data-v="' + view + '" aria-label="' + MF_Z[z] + ': убрать один прокат"' + (n ? '' : ' disabled') + '>−</button>' +
+          '<em class="mono" aria-label="сегодня ' + day[z] + '">' + (day[z] || '·') + '</em>' +
+          '<button type="button" data-act="mf-add" data-id="' + z + '" data-n="1" data-v="' + view + '" aria-label="' + MF_Z[z] + ': ещё прокат">+</button></span></li>';
+      }).join('') + '</ul>';
+  }
+  function mfHtml(t) {
+    var tot = mfTotals(), day = {}, nDay = 0, all = 0;
+    Object.keys(MF_Z).forEach(function (k) { day[k] = mfGet(k, t); if (day[k]) nDay++; all += tot[k] || 0; });
+    var z = MF_Z[MF.sel] ? MF.sel : (MF.sel = null), bar;
+    if (z) {
+      var n = tot[z] || 0;
+      bar = '<div class="mf-bar-t"><b>' + MF_Z[z] + '</b><small>сегодня ' + day[z] + ' · всего ' + n + (n < MF_FULL ? ' из ' + MF_FULL : ' · закрашена') + '</small></div>' +
+        '<button class="btn2" type="button" data-act="mf-add" data-id="' + z + '" data-n="-1" aria-label="Убрать один прокат"' + (n ? '' : ' disabled') + '>−1</button>' +
+        '<button class="btn2 btn2--mint" type="button" data-act="mf-add" data-id="' + z + '" data-n="1" aria-label="Ещё прокат">+1</button>' +
+        '<i class="mf-bar-p" style="width:' + Math.min(100, n / MF_FULL * 100) + '%"></i>';
+    } else {
+      bar = '<div class="mf-bar-t"><b>' + (nDay ? 'Сегодня — ' + nDay + ' ' + plural(nDay, 'зона', 'зоны', 'зон') : 'Нажми на зону, которую прокатал') + '</b>' +
+        '<small>' + (all ? 'всего прокатов: ' + all + ' · ' : '') + 'сто прокатов закрашивают зону целиком</small></div>';
+    }
+    return '<div class="mf-bar" role="status">' + bar + '</div>' +
+      '<div class="seg mf-view" role="group" aria-label="Проекция">' + [['f', 'Спереди'], ['b', 'Сзади']].map(function (q) {
+        return '<button type="button" data-act="mf-view" data-v="' + q[0] + '" aria-pressed="' + (q[0] === MF.view) + '">' + q[1] + '</button>';
+      }).join('') + '</div>' +
+      '<div class="mf-cols" data-v="' + MF.view + '">' + ['f', 'b'].map(function (v) {
+        return '<div class="mf-col mf-col--' + v + '"><h2>' + (v === 'f' ? 'Спереди' : 'Сзади') + '</h2>' + mfFigHtml(v, tot, day) + mfListHtml(v, tot, day) + '</div>';
+      }).join('') + '</div>' +
+      '<p class="tr-hint">Нажал на зону — записал один прокат за сегодня. Чем больше прокатов, тем гуще цвет; сотый закрашивает зону целиком. Обведены зоны, которые прокатал сегодня. Ошибся — «−1» вверху или «−» в списке. Левая и правая сторона — одна зона.</p>';
   }
 
   /* ═════════ 16. старт ═════════ */
@@ -2194,12 +2658,15 @@
     FAB = $('#kbFab');
     readKeyFromHash();
     load();
+    var sec0 = lsGet(LS.trsec, 'si');
+    if (trSecName(sec0)) TR.sec = sec0;
     mountShell();
     paintTheme();
 
     document.addEventListener('click', onClick);
     document.addEventListener('change', onChange);
     document.addEventListener('submit', onSubmit);
+    document.addEventListener('input', onInput);
     document.addEventListener('keydown', onKey);
     document.addEventListener('pointerdown', trDragStart);
     window.addEventListener('hashchange', function () { go(location.hash.slice(1)); window.scrollTo(0, 0); });
