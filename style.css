@@ -971,6 +971,9 @@ body.is-dragging{ user-select:none; -webkit-user-select:none; cursor:grabbing; }
 
 /* ───────── «МФР» — карта тела (12.10) ───────── */
 #v-train{ --mf-c:#A855F7; --mf-line:rgba(192,132,252,.55); --mf-day:#5EEAD4; --mf-body:rgba(255,255,255,.07); }
+/* айфон: частые касания по фигуре приближали страницу (двойной тап Safari). Запрет ставится на обычный блок-предок:
+   у самих фигур внутри SVG Safari его не слушает, а касание мимо зоны попадает в сам раздел. Щипок двумя пальцами остаётся */
+#v-train{ touch-action:manipulation; }
 .mf-bar{
   position:sticky; z-index:5; top:calc(8px + env(safe-area-inset-top, 0px)); display:flex; align-items:center; gap:8px;
   min-height:66px; margin:0 0 12px; padding:10px 10px 12px 14px; overflow:hidden; border-radius:var(--kb-r-m);
@@ -992,9 +995,9 @@ body.is-dragging{ user-select:none; -webkit-user-select:none; cursor:grabbing; }
   .mf-view{ display:none; }
   .mf-cols{ grid-template-columns:1fr 1fr; gap:24px; }
 }
-.mf-svg{ display:block; width:100%; max-width:330px; height:auto; margin:0 auto; overflow:visible; }
+.mf-svg{ display:block; width:100%; max-width:330px; height:auto; margin:0 auto; overflow:visible; touch-action:manipulation; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 .mf-b{ fill:var(--mf-body); pointer-events:none; }
-.mf-z{ fill:var(--mf-c); stroke:var(--mf-line); stroke-width:1.1; cursor:pointer; touch-action:manipulation; transform-box:fill-box; transform-origin:center; transition:fill-opacity .25s; }
+.mf-z{ fill:var(--mf-c); stroke:var(--mf-line); stroke-width:1.1; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; transform-box:fill-box; transform-origin:center; transition:fill-opacity .25s; }
 @media (hover:hover){ .mf-z:hover{ stroke:var(--lk-ink); stroke-width:1.8; } }
 .mf-z.is-day{ stroke:var(--mf-day); stroke-width:2.6; }
 .mf-z.is-full{ filter:drop-shadow(0 0 5px rgba(168,85,247,.85)); }

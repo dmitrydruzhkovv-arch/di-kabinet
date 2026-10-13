@@ -1779,7 +1779,7 @@
       case 'tr-sw-start': trSwStart(); break;
       case 'tr-sw-stop': trSwStop(); break;
       case 'tr-sw-reset': trSwReset(); break;
-      case 'mf-z': mfTap(id); break;
+      case 'mf-z': mfAdd(id, 1); break;   // сколько раз нажал — столько прокатов, и частые касания тоже
       case 'mf-add': mfAdd(id, +t.getAttribute('data-n')); break;
       case 'mf-view': MF.view = t.getAttribute('data-v') === 'b' ? 'b' : 'f'; renderTrain(); break;
       case 'ok-week': V.oknaNext = t.getAttribute('data-n') === '1'; renderOkna(); break;
@@ -2436,7 +2436,7 @@
      сотый закрашивает зону целиком. Фигура собрана из точек левой половины и отражается сама. */
 
   var MF_FULL = 100;
-  var MF = { sel: null, view: 'f', pop: null, at: 0, last: null };
+  var MF = { sel: null, view: 'f', pop: null };
   var MF_Z = {
     podbor: 'Подбородок', sheyap: 'Шея спереди', sheyaz: 'Шея сзади', trap: 'Верхняя трапеция',
     deltp: 'Плечо', deltz: 'Задняя дельта', grudv: 'Грудь, верх', grudn: 'Грудь, низ',
@@ -2558,12 +2558,6 @@
     MF.sel = z; MF.pop = n > 0 ? z : null;
     renderTrain();
     MF.pop = null;
-  }
-  function mfTap(z) {
-    var now = Date.now();
-    if (MF.last === z && now - MF.at < 300) return;   // дрогнул палец: двойное касание — один прокат
-    MF.last = z; MF.at = now;
-    mfAdd(z, 1);
   }
   function mfShade(n) { return n ? Math.round((0.14 + 0.86 * Math.min(1, n / MF_FULL)) * 1000) / 1000 : 0; }
 
