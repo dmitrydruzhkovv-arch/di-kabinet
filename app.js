@@ -29,6 +29,7 @@
   var API = APIS[0];
   var HUB = 'https://dmitrydruzhkovv-arch.github.io/di-hub/';
   var SCHOOL = 'https://dmitrydruzhkovv-arch.github.io/uroki-gagarina/';
+  var DENGI = 'https://hw.157-228-128-116.nip.io/dengi/';   // «Деньги D.» (ТЗ 24) — адрес, который работает и с VPN
   var ZAPIS_URL = 'https://dmitrydruzhkovv-arch.github.io/di-kabinet/zapis.html';   // живая запись (28.09)
   var KINDS = ['events', 'blocks', 'items', 'cfg'];
   var TABS = ['week', 'list', 'okna', 'train'];
@@ -79,6 +80,7 @@
     list:  '<rect x="3" y="3" width="18" height="18" rx="5"/><path d="M8 12.5l2.8 2.8L16.5 9"/>',
     okna:  '<rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M12 3v18M4 12h16"/>',
     school:'<path d="M2 9.5L12 5l10 4.5L12 14z"/><path d="M6 11.5v4.5c0 1.4 2.7 3 6 3s6-1.6 6-3v-4.5M22 9.5v5"/>',
+    money: '<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h2M3 10h18"/>',
     link:  '<path d="M10 14L20 4M14 4h6v6"/><path d="M20 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4"/>',
     set:   '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
     plus:  '<path d="M12 5v14M5 12h14"/>',
@@ -470,6 +472,7 @@
     }).join('') +
       '<a href="perepiska.html" title="Переписка" aria-label="Переписка">' + ic('chat') + '<span>Переписка</span></a>' +   // что бот пишет людям (28.09)
       '<a href="sistemy.html" title="Системы" aria-label="Системы">' + ic('pulse') + '<span>Системы</span></a>' +   // пульт: что работает, сервер, люди (ТЗ 13, 29.09)
+      '<a href="' + DENGI + '" target="_blank" rel="noopener" title="Деньги" aria-label="Деньги">' + ic('money') + '<span>Деньги</span></a>' +   // личный финансовый пульт (ТЗ 24, 28.10)
       '<a href="' + SCHOOL + '" target="_blank" rel="noopener" title="Школа" aria-label="Школа">' + ic('school') + '<span>Школа</span></a>' +
       '<a href="' + HUB + '" target="_blank" rel="noopener" title="Ссылки" aria-label="Ссылки">' + ic('link') + '<span>Ссылки</span></a>';
 
