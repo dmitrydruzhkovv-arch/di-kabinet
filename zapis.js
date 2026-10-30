@@ -12,7 +12,7 @@
   'use strict';
 
   var HOME = 2;   // расписание D. — Екатеринбург, МСК+2
-  var POLICY = 'politika.html', SOGLASIE = 'soglasie.html';   // тексты Нормы v2 (28.09)
+  var POLICY = 'politika.html', SOGLASIE = 'soglasie.html';   // тексты Нормы: v2 (28.09), v2.1 (30.10)
   var TEST = new URLSearchParams(location.search).get('api') === 'test';   // тестовый бот: свой ключ в памяти
   var LS = { p: TEST ? 'zapis:p:test' : 'zapis:p', tz: 'zapis:tz', api: TEST ? 'zapis:api:test' : 'zapis:api' };
   var DOW = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -242,7 +242,10 @@
       sheet(head + '<p>Перенести занятие <b>' + when(Z.move.date, Z.move.m) + '</b> на это время?</p>' +
         btns('Перенести', 'do-move', date, m));
     } else if (me) {
-      sheet(head + '<p>Записать: <b>' + esc(me.name) + '</b></p>' + btns('Записаться', 'do-book', date, m));
+      // согласие старше 2.1 (флаг SOGLASIE_21 на сервере): одна галочка над кнопкой — что изменилось и ссылка на текст
+      sheet(head + '<p>Записать: <b>' + esc(me.name) + '</b></p>' + (me.oldc ? '<form id="zpForm" novalidate>' +
+        '<label class="zp-ok"><input type="checkbox" name="consent"> <span>Мы обновили согласие: добавились оценки, посещаемость и проверка фото без имени. Принимаю <a href="' + SOGLASIE + '" target="_blank" rel="noopener">обновлённое согласие</a>.</span></label>' +
+        '<p class="fl-err" id="zpErr" hidden></p>' + btns('Записаться', 'do-book', date, m, true) + '</form>' : btns('Записаться', 'do-book', date, m)));
     } else {
       sheet(head +
         '<form id="zpForm" novalidate>' +
@@ -262,8 +265,14 @@
   function doBook(date, m) {
     if (busy) return;
     var body = { date: date, start: hhmm(m), tz: Z.tz };
-    if (Z.p) body.p = Z.p;
-    else {
+    if (Z.p) {
+      body.p = Z.p;
+      var fo = document.getElementById('zpForm');
+      if (fo) {   // обновлённое согласие — галочка до записи
+        body.consent = fo.consent.checked;
+        if (!body.consent) { var e2 = document.getElementById('zpErr'); e2.textContent = 'Нужно согласие на обработку данных'; e2.hidden = false; return; }
+      }
+    } else {
       var f = document.getElementById('zpForm'), err = document.getElementById('zpErr');
       body.name = f.name.value.trim(); body.contact = f.contact.value.trim(); body.consent = f.consent.checked;
       var bad = !body.name ? 'Напишите имя ученика' : !body.contact ? 'Оставьте телефон или ник в Телеграме' : !body.consent ? 'Нужно согласие на обработку данных' : '';
